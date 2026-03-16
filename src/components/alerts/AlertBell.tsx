@@ -81,7 +81,7 @@ export function AlertBell() {
   const pendingCount = alerts.filter(a => a.status === 'pending').length;
 
   const handleAcknowledge = async (id: string) => {
-    await supabase.from('admin_alerts').update({ status: 'acknowledged' }).eq('id', id);
+    await (supabase as any).from('admin_alerts').update({ status: 'acknowledged' }).eq('id', id);
     setAlerts(prev => prev.map(a => a.id === id ? { ...a, status: 'acknowledged' } : a));
   };
 
