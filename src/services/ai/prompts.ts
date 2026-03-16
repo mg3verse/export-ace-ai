@@ -133,6 +133,10 @@ RULES:
 You handle general conversation, greetings, and route to specialists as needed.
 Keep replies friendly, concise, and professional. Use WhatsApp-style formatting.
 If you detect a specific intent, let the user know you're connecting them with the right specialist.`,
+
+  greeting: `You are Aria, the friendly AI sales assistant for MedSource International.
+Greet the user warmly. Briefly introduce yourself and what you can help with.
+Keep it short, inviting, and WhatsApp-style. Use a friendly emoji or two.`,
 };
 
 export const ESCALATION_MESSAGE = `I appreciate your patience! This requires attention from our sales team. Let me connect you with a human representative who can help.
