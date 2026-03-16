@@ -1,6 +1,26 @@
 import { create } from 'zustand';
 import { supabase } from '@/integrations/supabase/client';
-import { DashboardData, Order, OrderItem } from '@/types/domain';
+
+interface DashboardOrder {
+  id: string;
+  customer_name: string;
+  total_amount: number;
+  status: string;
+  created_at: string;
+  products: any[];
+  delivery_address: string | null;
+  conversation_id: string | null;
+}
+
+interface DashboardData {
+  totalRevenue: number;
+  activeLeads: number;
+  conversionRate: number;
+  pendingOrders: number;
+  revenueByMonth: { month: string; revenue: number; orders: number }[];
+  leadsByCountry: { country: string; count: number }[];
+  recentOrders: DashboardOrder[];
+}
 
 interface DashboardState {
   data: DashboardData;
@@ -26,80 +46,48 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
   fetchData: async () => {
     set({ isLoading: true });
     try {
-      const [ordersRes, leadsRes, orderItemsRes] = await Promise.all([
+      const [ordersRes, leadsRes] = await Promise.all([
         supabase.from('orders').select('*').order('created_at', { ascending: false }),
         supabase.from('leads').select('*'),
-        supabase.from('order_items').select('*'),
       ]);
 
-      const orders = (ordersRes.data ?? []) as any[];
+      const orders = (ordersRes.data ?? []) as unknown as DashboardOrder[];
       const leads = (leadsRes.data ?? []) as any[];
-      const orderItems = (orderItemsRes.data ?? []) as any[];
 
-      // Map order items by order_id
-      const itemsByOrder: Record<string, OrderItem[]> = {};
-      for (const item of orderItems) {
-        const oid = item.order_id;
-        if (!itemsByOrder[oid]) itemsByOrder[oid] = [];
-        itemsByOrder[oid].push({
-          productId: item.product_id,
-          sku: item.sku,
-          productName: item.product_name,
-          quantity: item.quantity,
-          unitPrice: Number(item.unit_price),
-          discount: Number(item.discount),
-          lineTotal: Number(item.line_total),
-        });
-      }
+      const totalRevenue = orders.reduce((s, o) => s + Number(o.total_amount), 0);
+      const qualifiedLeads = leads.filter((l) => l.status !== 'new').length;
+      const pendingOrders = orders.filter((o) => o.status === 'pending').length;
+      const conversionRate = leads.length > 0 ? Math.round((qualifiedLeads / leads.length) * 100) : 0;
 
-      const mappedOrders: Order[] = orders.map((o) => ({
-        id: o.id,
-        leadId: o.lead_id ?? '',
-        companyName: o.company_name,
-        items: itemsByOrder[o.id] ?? [],
-        totalValue: Number(o.total_value),
-        status: o.status,
-        shippingAddress: o.shipping_address ?? '',
-        country: o.country,
-        createdAt: o.created_at,
-        updatedAt: o.updated_at,
-      }));
-
-      const totalRevenue = mappedOrders.reduce((s, o) => s + o.totalValue, 0);
-      const activeLeads = leads.filter((l: any) => l.is_qualified).length;
-      const pendingOrders = mappedOrders.filter((o) => o.status === 'pending').length;
-      const conversionRate = leads.length > 0 ? Math.round((activeLeads / leads.length) * 100) : 0;
-
-      // Revenue by month from orders
-      const monthMap: Record<string, { revenue: number; orders: number }> = {};
+      // Revenue by month
       const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-      for (const o of mappedOrders) {
-        const d = new Date(o.createdAt);
-        const key = monthNames[d.getMonth()];
+      const monthMap: Record<string, { revenue: number; orders: number }> = {};
+      for (const o of orders) {
+        const key = monthNames[new Date(o.created_at).getMonth()];
         if (!monthMap[key]) monthMap[key] = { revenue: 0, orders: 0 };
-        monthMap[key].revenue += o.totalValue;
+        monthMap[key].revenue += Number(o.total_amount);
         monthMap[key].orders += 1;
       }
       const revenueByMonth = Object.entries(monthMap).map(([month, v]) => ({ month, ...v }));
 
-      // Leads by country
-      const countryMap: Record<string, number> = {};
+      // Leads by company (using company_name as proxy since no country field)
+      const companyMap: Record<string, number> = {};
       for (const l of leads) {
-        countryMap[l.country] = (countryMap[l.country] ?? 0) + 1;
+        companyMap[l.company_name] = (companyMap[l.company_name] ?? 0) + 1;
       }
-      const leadsByCountry = Object.entries(countryMap)
+      const leadsByCountry = Object.entries(companyMap)
         .map(([country, count]) => ({ country, count }))
         .sort((a, b) => b.count - a.count);
 
       set({
         data: {
           totalRevenue,
-          activeLeads,
+          activeLeads: qualifiedLeads,
           conversionRate,
           pendingOrders,
           revenueByMonth,
           leadsByCountry,
-          recentOrders: mappedOrders.slice(0, 10),
+          recentOrders: orders.slice(0, 10),
         },
         isLoading: false,
       });
