@@ -9,7 +9,7 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
-// ── Pricing tiers (same as orchestrator) ─────────────────
+// ── Pricing tiers ────────────────────────────────────────
 const PRICING_TIERS = [
   { minQty: 1, maxQty: 10, discountPct: 0 },
   { minQty: 11, maxQty: 50, discountPct: 10 },
@@ -29,13 +29,103 @@ function getSupabase() {
   );
 }
 
+// ── WhatsApp Message Senders ─────────────────────────────
+
+function getWhatsAppCreds() {
+  const token = Deno.env.get("WHATSAPP_ACCESS_TOKEN");
+  const phoneId = Deno.env.get("WHATSAPP_PHONE_NUMBER_ID");
+  if (!token || !phoneId) throw new Error("WhatsApp credentials not configured");
+  return { token, phoneId };
+}
+
+// Send plain text (with auto-chunking for long messages)
+async function sendText(to: string, text: string): Promise<boolean> {
+  const { token, phoneId } = getWhatsAppCreds();
+
+  const chunks: string[] = [];
+  let remaining = text;
+  while (remaining.length > 4000) {
+    const splitAt = remaining.lastIndexOf('\n', 4000);
+    const bp = splitAt > 2000 ? splitAt : 4000;
+    chunks.push(remaining.slice(0, bp));
+    remaining = remaining.slice(bp).trim();
+  }
+  if (remaining) chunks.push(remaining);
+
+  for (const chunk of chunks) {
+    const resp = await fetch(`https://graph.facebook.com/v21.0/${phoneId}/messages`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ messaging_product: "whatsapp", to, type: "text", text: { body: chunk } }),
+    });
+    if (!resp.ok) {
+      console.error("WhatsApp send error:", resp.status, await resp.text());
+      return false;
+    }
+  }
+  return true;
+}
+
+// Send interactive buttons (max 3 buttons, 20 char each)
+async function sendButtons(to: string, body: string, buttons: { id: string; title: string }[], header?: string, footer?: string): Promise<boolean> {
+  const { token, phoneId } = getWhatsAppCreds();
+
+  const interactive: any = {
+    type: "button",
+    body: { text: body },
+    action: {
+      buttons: buttons.slice(0, 3).map(b => ({
+        type: "reply",
+        reply: { id: b.id, title: b.title.slice(0, 20) },
+      })),
+    },
+  };
+  if (header) interactive.header = { type: "text", text: header };
+  if (footer) interactive.footer = { text: footer };
+
+  const resp = await fetch(`https://graph.facebook.com/v21.0/${phoneId}/messages`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ messaging_product: "whatsapp", to, type: "interactive", interactive }),
+  });
+  if (!resp.ok) {
+    console.error("WhatsApp buttons error:", resp.status, await resp.text());
+    return false;
+  }
+  return true;
+}
+
+// Send interactive list menu
+async function sendList(to: string, body: string, buttonText: string, sections: { title: string; rows: { id: string; title: string; description?: string }[] }[], header?: string, footer?: string): Promise<boolean> {
+  const { token, phoneId } = getWhatsAppCreds();
+
+  const interactive: any = {
+    type: "list",
+    body: { text: body },
+    action: { button: buttonText.slice(0, 20), sections },
+  };
+  if (header) interactive.header = { type: "text", text: header };
+  if (footer) interactive.footer = { text: footer };
+
+  const resp = await fetch(`https://graph.facebook.com/v21.0/${phoneId}/messages`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ messaging_product: "whatsapp", to, type: "interactive", interactive }),
+  });
+  if (!resp.ok) {
+    console.error("WhatsApp list error:", resp.status, await resp.text());
+    return false;
+  }
+  return true;
+}
+
 // ── Tool functions ───────────────────────────────────────
 async function searchProductTool(query: string): Promise<string> {
   const sb = getSupabase();
   const { data, error } = await sb
     .from("products")
     .select("sku, name, price_usd, stock_quantity, category")
-    .or(`sku.ilike.%${query}%,name.ilike.%${query}%`)
+    .or(`sku.ilike.%${query}%,name.ilike.%${query}%,category.ilike.%${query}%`)
     .limit(5);
   if (error) return JSON.stringify({ error: error.message });
   if (!data || data.length === 0) return JSON.stringify({ error: "No products found" });
@@ -106,10 +196,10 @@ const ALL_TOOLS = [
     type: "function",
     function: {
       name: "search_product",
-      description: "Search for pharmaceutical products by name or SKU",
+      description: "Search for pharmaceutical products by name, SKU, or category",
       parameters: {
         type: "object",
-        properties: { query: { type: "string", description: "Product name or SKU" } },
+        properties: { query: { type: "string", description: "Product name, SKU, or category" } },
         required: ["query"],
       },
     },
@@ -122,9 +212,9 @@ const ALL_TOOLS = [
       parameters: {
         type: "object",
         properties: {
-          base_price: { type: "number", description: "Base price per unit in USD" },
-          quantity: { type: "number", description: "Number of units/boxes" },
-          currency: { type: "string", description: "Target currency code", default: "USD" },
+          base_price: { type: "number" },
+          quantity: { type: "number" },
+          currency: { type: "string", default: "USD" },
         },
         required: ["base_price", "quantity"],
       },
@@ -134,7 +224,7 @@ const ALL_TOOLS = [
     type: "function",
     function: {
       name: "create_order",
-      description: "Create a new order in the system after collecting all required info",
+      description: "Create a new order after collecting all required info",
       parameters: {
         type: "object",
         properties: {
@@ -143,11 +233,7 @@ const ALL_TOOLS = [
             type: "array",
             items: {
               type: "object",
-              properties: {
-                sku: { type: "string" }, name: { type: "string" },
-                quantity: { type: "number" }, unit_price: { type: "number" },
-                line_total: { type: "number" },
-              },
+              properties: { sku: { type: "string" }, name: { type: "string" }, quantity: { type: "number" }, unit_price: { type: "number" }, line_total: { type: "number" } },
               required: ["sku", "name", "quantity", "unit_price", "line_total"],
             },
           },
@@ -162,7 +248,7 @@ const ALL_TOOLS = [
     type: "function",
     function: {
       name: "create_lead",
-      description: "Save a qualified lead to the database",
+      description: "Save a qualified lead",
       parameters: {
         type: "object",
         properties: {
@@ -170,7 +256,7 @@ const ALL_TOOLS = [
           contact_person: { type: "string" },
           phone: { type: "string" },
           email: { type: "string" },
-          lead_score: { type: "number", description: "0-100" },
+          lead_score: { type: "number" },
           country: { type: "string" },
         },
         required: ["company_name"],
@@ -179,48 +265,138 @@ const ALL_TOOLS = [
   },
 ];
 
-// ── Agent prompts ────────────────────────────────────────
+// ── Agent prompts (concise, WhatsApp-optimized) ──────────
 const AGENT_PROMPTS: Record<string, string> = {
-  pricing: `You are a pharmaceutical pricing specialist at MedSource International.
-Use search_product and calculate_price tools to look up real prices from the catalog.
-BULK DISCOUNTS: 5% above 200 boxes, 10% above 500 boxes. MIN ORDER VALUE: $500 USD.
-Always ask for company name and country before quoting. Show breakdowns. Keep replies concise (WhatsApp style). Never make medical claims.`,
+  pricing: `You are Aria, pricing specialist at MedSource International — a B2B pharmaceutical export company.
 
-  faq: `You are a product information expert at MedSource International.
-SHIPPING: UAE/Saudi Arabia/Nigeria/Kenya/Philippines: 7-10 days. Other: 14-21 days. All tracked.
-LICENSING: Valid pharmaceutical import license required. GMP-certified. WHO-prequalified available.
-PAYMENT: Wire transfer, L/C. 50% advance for new customers. Net 30 for established accounts.
-Be helpful and precise. Keep concise for WhatsApp.`,
+RULES:
+- Use search_product tool to find real products and prices from our catalog
+- Use calculate_price tool for quotes with volume discounts
+- Keep responses SHORT (3-5 lines max). This is WhatsApp, not email
+- Use bold *text* for key numbers and product names
+- Format prices clearly: *$X.XX per unit* or *$X,XXX total*
+- Always mention minimum order: *$500 USD*
+- If user hasn't specified a product, ask which one — don't guess
+- Never make medical claims
 
-  order: `You are an order collection specialist at MedSource International.
-Use search_product to verify products and calculate_price for totals. When all info is collected, use create_order tool.
-Collect: 1) Products & qty 2) Company name 3) Delivery address/country 4) Contact person 5) Phone/email 6) License number.
-Min order $500. Be thorough but efficient. Format summaries clearly for WhatsApp.`,
+VOLUME DISCOUNTS:
+11-50 units: 10% off | 51-100: 15% off | 101+: 20% off`,
 
-  qualifier: `You are a B2B lead qualifier at MedSource International.
-Qualify: 1) Company type 2) Country 3) License status 4) Monthly volume 5) Current suppliers 6) Product interests.
-When qualified, use create_lead tool to save. Score: Licensed distributor=80, Hospital chain=60, Single pharmacy=40, No license=10.
-Be warm, qualify naturally.`,
+  faq: `You are Aria, product info expert at MedSource International.
 
-  greeting: `You are Aria, the friendly AI sales assistant for MedSource International.
-Greet warmly. Briefly mention you can help with: pricing/quotes, shipping/licensing info, placing orders, buyer qualification.
-Keep it short. Use a friendly emoji. Ask how you can help.`,
+RULES:
+- Answer in 2-4 lines MAX. Be direct.
+- Use bold *text* for key info
+- Format shipping clearly:
+  • UAE/KSA/Nigeria/Kenya/Philippines: *7-10 days*
+  • Other regions: *14-21 days*
+- Payment: Wire transfer or L/C. 50% advance (new customers), Net 30 (established)
+- Licensing: Valid pharmaceutical import license required
+- If you can't answer, say so and offer to connect with the team`,
+
+  order: `You are Aria, order specialist at MedSource International.
+
+RULES:
+- Use search_product to verify products exist before proceeding
+- Use calculate_price for totals
+- Collect info ONE step at a time — don't dump a list
+- When all info is ready, use create_order tool
+- Keep each message to 2-3 lines
+- Use bold for order details
+
+REQUIRED INFO (collect step by step):
+1. Product(s) + quantity
+2. Company name
+3. Delivery country/address
+4. Contact name + phone/email`,
+
+  qualifier: `You are Aria, business development at MedSource International.
+
+RULES:
+- Qualify naturally through conversation, not interrogation
+- Keep each message 2-3 lines
+- When qualified, use create_lead tool
+- Score: Licensed distributor=80, Hospital=60, Pharmacy=40, No license=10
+
+QUALIFY (naturally, not all at once):
+1. Company type
+2. Country
+3. License status
+4. Volume needs`,
+
+  greeting: `You are Aria, AI sales assistant for MedSource International.
+Reply with ONLY this exact text, nothing else:
+Welcome to *MedSource International* 🏥
+
+Your trusted partner for pharmaceutical exports worldwide.`,
 };
+
+// ── Menu messages ────────────────────────────────────────
+
+// Send the main menu with 4 clickable options
+async function sendMainMenu(to: string): Promise<boolean> {
+  return await sendList(
+    to,
+    "How can I help you today? Select an option below 👇",
+    "View Options",
+    [{
+      title: "Our Services",
+      rows: [
+        { id: "menu_pricing", title: "💰 Get a Quote", description: "Product pricing & bulk discounts" },
+        { id: "menu_order", title: "📦 Place an Order", description: "Start a new purchase order" },
+        { id: "menu_faq", title: "ℹ️ Shipping & Info", description: "Licensing, payment & delivery" },
+        { id: "menu_qualify", title: "🤝 Become a Buyer", description: "Register as a qualified buyer" },
+      ],
+    }],
+    "MedSource International",
+    "Pharmaceutical exports worldwide 🌍"
+  );
+}
+
+// Map menu button IDs to agents
+function getAgentFromMenuId(id: string): string | null {
+  const map: Record<string, string> = {
+    menu_pricing: "pricing",
+    menu_order: "order",
+    menu_faq: "faq",
+    menu_qualify: "qualifier",
+    menu_back: "greeting",
+  };
+  return map[id] || null;
+}
+
+// Menu label for display in conversation
+function getMenuLabel(id: string): string {
+  const map: Record<string, string> = {
+    menu_pricing: "Get a Quote",
+    menu_order: "Place an Order",
+    menu_faq: "Shipping & Info",
+    menu_qualify: "Become a Buyer",
+  };
+  return map[id] || id;
+}
 
 // ── Intent classification ────────────────────────────────
 const CLASSIFIER_PROMPT = `You are an intent classifier for MedSource International, a pharmaceutical B2B export company.
-Classify the intent: PRICING, FAQ, ORDER, QUALIFICATION, ESCALATE, GREETING. If unsure, default to FAQ.`;
+Classify the user's intent into one of: PRICING, FAQ, ORDER, QUALIFICATION, ESCALATE, GREETING.
+- GREETING: hi, hello, hey, start, menu, back
+- PRICING: price, quote, cost, how much, rate, discount, bulk
+- ORDER: order, buy, purchase, place order, checkout
+- FAQ: shipping, delivery, license, payment, terms, info
+- QUALIFICATION: register, become buyer, new customer, qualify
+- ESCALATE: speak to human, agent, complaint, urgent issue
+If unsure, default to FAQ.`;
 
 async function classifyIntent(
   messages: { role: string; content: string }[],
   apiKey: string
-): Promise<{ intent: string; confidence: number; entities: Record<string, unknown> }> {
+): Promise<{ intent: string; confidence: number }> {
   const resp = await fetch(AI_URL, {
     method: "POST",
     headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
     body: JSON.stringify({
       model: "google/gemini-2.5-flash-lite",
-      messages: [{ role: "system", content: CLASSIFIER_PROMPT }, ...messages.slice(-6)],
+      messages: [{ role: "system", content: CLASSIFIER_PROMPT }, ...messages.slice(-4)],
       tools: [{
         type: "function",
         function: {
@@ -231,30 +407,21 @@ async function classifyIntent(
             properties: {
               intent: { type: "string", enum: ["PRICING", "FAQ", "ORDER", "QUALIFICATION", "ESCALATE", "GREETING"] },
               confidence: { type: "number" },
-              entities: {
-                type: "object",
-                properties: {
-                  product_names: { type: "array", items: { type: "string" } },
-                  quantities: { type: "array", items: { type: "number" } },
-                  company_name: { type: "string" },
-                  country: { type: "string" },
-                },
-              },
             },
-            required: ["intent", "confidence", "entities"],
+            required: ["intent", "confidence"],
           },
         },
       }],
       tool_choice: { type: "function", function: { name: "classify_intent" } },
     }),
   });
-  if (!resp.ok) return { intent: "FAQ", confidence: 0.5, entities: {} };
+  if (!resp.ok) return { intent: "FAQ", confidence: 0.5 };
   const data = await resp.json();
   const tc = data.choices?.[0]?.message?.tool_calls?.[0];
   if (tc?.function?.arguments) {
     try { return JSON.parse(tc.function.arguments); } catch { /* fallback */ }
   }
-  return { intent: "FAQ", confidence: 0.5, entities: {} };
+  return { intent: "FAQ", confidence: 0.5 };
 }
 
 function intentToAgent(intent: string): string {
@@ -276,7 +443,7 @@ async function executeTool(name: string, args: any, conversationId?: string): Pr
   }
 }
 
-// ── Get AI response (non-streaming for WhatsApp) ─────────
+// ── Get AI response (non-streaming) ──────────────────────
 async function getAIResponse(
   agent: string,
   messages: { role: string; content: string }[],
@@ -290,10 +457,7 @@ async function getAIResponse(
   let maxIterations = 5;
 
   while (maxIterations-- > 0) {
-    const body: any = {
-      model: "google/gemini-3-flash-preview",
-      messages: agentMessages,
-    };
+    const body: any = { model: "google/gemini-3-flash-preview", messages: agentMessages };
     if (useTools) body.tools = ALL_TOOLS;
 
     const resp = await fetch(AI_URL, {
@@ -304,7 +468,7 @@ async function getAIResponse(
 
     if (!resp.ok) {
       console.error("AI error:", resp.status);
-      return "Sorry, I'm having trouble right now. Please try again in a moment.";
+      return "Sorry, I'm having trouble right now. Please try again shortly.";
     }
 
     const data = await resp.json();
@@ -312,10 +476,9 @@ async function getAIResponse(
     const toolCalls = choice?.message?.tool_calls;
 
     if (!toolCalls || toolCalls.length === 0) {
-      return choice?.message?.content || "I'm not sure how to respond to that.";
+      return choice?.message?.content || "I'm not sure how to help with that. Please select an option from the menu.";
     }
 
-    // Execute tool calls and continue loop
     agentMessages.push(choice.message);
     for (const tc of toolCalls) {
       let result = "{}";
@@ -329,7 +492,6 @@ async function getAIResponse(
     }
   }
 
-  // Final call without tools to get text response
   const finalResp = await fetch(AI_URL, {
     method: "POST",
     headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
@@ -337,60 +499,12 @@ async function getAIResponse(
   });
   if (!finalResp.ok) return "Sorry, I'm having trouble right now.";
   const finalData = await finalResp.json();
-  return finalData.choices?.[0]?.message?.content || "I'm not sure how to respond to that.";
+  return finalData.choices?.[0]?.message?.content || "I'm not sure how to help with that.";
 }
 
-// ── Send WhatsApp message via Meta Cloud API ─────────────
-async function sendWhatsAppMessage(to: string, text: string): Promise<boolean> {
-  const token = Deno.env.get("WHATSAPP_ACCESS_TOKEN");
-  const phoneId = Deno.env.get("WHATSAPP_PHONE_NUMBER_ID");
-  if (!token || !phoneId) {
-    console.error("WhatsApp credentials not configured");
-    return false;
-  }
-
-  // WhatsApp has a 4096 char limit per text message — split if needed
-  const chunks: string[] = [];
-  let remaining = text;
-  while (remaining.length > 4000) {
-    const splitAt = remaining.lastIndexOf('\n', 4000);
-    const breakPoint = splitAt > 2000 ? splitAt : 4000;
-    chunks.push(remaining.slice(0, breakPoint));
-    remaining = remaining.slice(breakPoint).trim();
-  }
-  if (remaining) chunks.push(remaining);
-
-  for (const chunk of chunks) {
-    const resp = await fetch(
-      `https://graph.facebook.com/v21.0/${phoneId}/messages`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          messaging_product: "whatsapp",
-          to,
-          type: "text",
-          text: { body: chunk },
-        }),
-      }
-    );
-    if (!resp.ok) {
-      const err = await resp.text();
-      console.error("WhatsApp send error:", resp.status, err);
-      return false;
-    }
-  }
-  return true;
-}
-
-// ── Find or create conversation ──────────────────────────
+// ── Conversation management ──────────────────────────────
 async function getOrCreateConversation(phone: string) {
   const sb = getSupabase();
-
-  // Try to find existing active conversation
   const { data: existing } = await sb
     .from("conversations")
     .select("*")
@@ -399,183 +513,213 @@ async function getOrCreateConversation(phone: string) {
     .order("updated_at", { ascending: false })
     .limit(1)
     .single();
-
   if (existing) return existing;
 
-  // Create new conversation
   const { data: created, error } = await sb
     .from("conversations")
-    .insert({
-      phone_number: phone,
-      messages: [],
-      current_agent: "greeting",
-      conversation_state: "active",
-      lead_score: 0,
-    })
+    .insert({ phone_number: phone, messages: [], current_agent: "greeting", conversation_state: "active", lead_score: 0 })
     .select()
     .single();
-
-  if (error) {
-    console.error("Failed to create conversation:", error);
-    throw error;
-  }
+  if (error) throw error;
   return created;
 }
 
-// ── Update conversation in DB ────────────────────────────
 async function updateConversation(id: string, messages: any[], agent: string) {
   const sb = getSupabase();
   await sb.from("conversations").update({
-    messages,
-    current_agent: agent,
-    updated_at: new Date().toISOString(),
+    messages, current_agent: agent, updated_at: new Date().toISOString(),
   }).eq("id", id);
 }
 
-// ── Log analytics ────────────────────────────────────────
 async function logEvent(eventType: string, eventData: Record<string, unknown>) {
   const sb = getSupabase();
   await sb.from("analytics_events").insert({ event_type: eventType, event_data: eventData });
 }
 
+// ── Extract message content from webhook payload ─────────
+function extractMessageContent(message: any): { text: string; isMenuSelection: boolean; menuId?: string } | null {
+  // Interactive button reply
+  if (message.type === "interactive") {
+    const reply = message.interactive?.button_reply || message.interactive?.list_reply;
+    if (reply) {
+      return { text: reply.title, isMenuSelection: true, menuId: reply.id };
+    }
+  }
+
+  // Plain text
+  if (message.type === "text" && message.text?.body) {
+    return { text: message.text.body, isMenuSelection: false };
+  }
+
+  return null;
+}
+
 // ── Main handler ─────────────────────────────────────────
 serve(async (req) => {
-  // CORS preflight
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   const url = new URL(req.url);
 
-  // ── GET: Meta webhook verification ─────────────────────
+  // ── GET: Webhook verification ──────────────────────────
   if (req.method === "GET") {
     const mode = url.searchParams.get("hub.mode");
     const token = url.searchParams.get("hub.verify_token");
     const challenge = url.searchParams.get("hub.challenge");
     const verifyToken = Deno.env.get("WHATSAPP_VERIFY_TOKEN");
-
     if (mode === "subscribe" && token === verifyToken) {
-      console.log("Webhook verified successfully");
+      console.log("✅ Webhook verified");
       return new Response(challenge, { status: 200, headers: { "Content-Type": "text/plain" } });
     }
     return new Response("Forbidden", { status: 403 });
   }
 
-  // ── POST: Incoming WhatsApp messages ───────────────────
+  // ── POST: Incoming messages ────────────────────────────
   if (req.method === "POST") {
     try {
       const rawBody = await req.text();
 
-      // Verify X-Hub-Signature-256 if app secret is configured
+      // Verify signature
       const appSecret = Deno.env.get("WHATSAPP_APP_SECRET");
       if (appSecret) {
         const signature = req.headers.get("x-hub-signature-256");
         if (signature) {
-          const key = await crypto.subtle.importKey(
-            "raw",
-            new TextEncoder().encode(appSecret),
-            { name: "HMAC", hash: "SHA-256" },
-            false,
-            ["sign"]
-          );
+          const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(appSecret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
           const sig = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(rawBody));
           const expected = "sha256=" + Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2, "0")).join("");
           if (expected !== signature) {
-            console.error("Invalid webhook signature");
+            console.error("❌ Invalid webhook signature");
             return new Response("Invalid signature", { status: 403 });
           }
         }
       }
 
       const body = JSON.parse(rawBody);
+      const value = body?.entry?.[0]?.changes?.[0]?.value;
 
-      // Meta sends various webhook events — we only care about messages
-      const entry = body?.entry?.[0];
-      const changes = entry?.changes?.[0];
-      const value = changes?.value;
-
-      // Check if this is a message event (not status update etc.)
       if (!value?.messages || value.messages.length === 0) {
-        // Could be a status update — acknowledge it
-        return new Response(JSON.stringify({ status: "ok" }), {
-          status: 200,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        return new Response(JSON.stringify({ status: "ok" }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
 
       const message = value.messages[0];
-      const from = message.from; // phone number without +
-      const messageText = message.text?.body;
+      const from = message.from;
 
-      if (!messageText) {
-        // Non-text message (image, audio, etc.) — acknowledge
-        await sendWhatsAppMessage(from, "I can only process text messages at the moment. Please type your question! 😊");
-        return new Response(JSON.stringify({ status: "ok" }), {
-          status: 200,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+      // Extract message content (text or interactive reply)
+      const content = extractMessageContent(message);
+      if (!content) {
+        await sendText(from, "I can only process text messages at the moment. Please select an option from the menu! 😊");
+        await sendMainMenu(from);
+        return new Response(JSON.stringify({ status: "ok" }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
 
-      console.log(`📩 WhatsApp from ${from}: ${messageText}`);
+      console.log(`📩 WhatsApp from ${from}: ${content.text} ${content.isMenuSelection ? `[menu: ${content.menuId}]` : ""}`);
 
-      // Get or create conversation
       const conversation = await getOrCreateConversation(from);
       const existingMessages = (conversation.messages as any[]) || [];
-
-      // Build message history for AI
-      const aiHistory = existingMessages.map((m: any) => ({
-        role: m.role as string,
-        content: m.content as string,
-      }));
-      aiHistory.push({ role: "user", content: messageText });
-
       const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
       if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
 
-      // Classify intent
-      const classification = await classifyIntent(aiHistory.slice(-10), LOVABLE_API_KEY);
-      const agent = intentToAgent(classification.intent);
-      console.log(`🤖 Intent: ${classification.intent} → Agent: ${agent}`);
-
-      // Handle escalation
+      let agent: string;
       let aiResponse: string;
-      if (agent === "escalate") {
-        aiResponse = "I understand this needs special attention. Let me connect you with our team.\n\n📞 Contact: +971-4-XXX-XXXX\n📧 Email: sales@medsource.com\n\nA team member will reach out within 24 hours.";
-      } else {
-        aiResponse = await getAIResponse(agent, aiHistory.slice(-10), LOVABLE_API_KEY, conversation.id);
+
+      // ── Handle menu selection ──────────────────────────
+      if (content.isMenuSelection && content.menuId) {
+        const menuAgent = getAgentFromMenuId(content.menuId);
+        if (menuAgent === "greeting") {
+          // Back to main menu
+          await sendMainMenu(from);
+          await updateConversation(conversation.id, [...existingMessages, { role: "user", content: content.text, timestamp: new Date().toISOString() }], "greeting");
+          return new Response(JSON.stringify({ status: "ok" }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        }
+        if (menuAgent) {
+          agent = menuAgent;
+          // Send a contextual opening message based on selection
+          const openingMessages: Record<string, string> = {
+            pricing: "You selected *Get a Quote* 💰\n\nWhich product are you interested in? You can share a product name or category.",
+            order: "You selected *Place an Order* 📦\n\nLet's get started! Which product(s) would you like to order?",
+            faq: "You selected *Shipping & Info* ℹ️\n\nWhat would you like to know? I can help with shipping times, licensing, or payment terms.",
+            qualifier: "You selected *Become a Buyer* 🤝\n\nGreat! Let me help you get registered. What's your company name?",
+          };
+          aiResponse = openingMessages[agent] || "How can I help?";
+
+          // Send response + back button
+          await sendText(from, aiResponse);
+          await sendButtons(from, "Need something else?", [{ id: "menu_back", title: "↩️ Main Menu" }]);
+
+          const updatedMessages = [
+            ...existingMessages,
+            { role: "user", content: `[Selected: ${getMenuLabel(content.menuId!)}]`, timestamp: new Date().toISOString() },
+            { role: "assistant", content: aiResponse, agent_role: agent, timestamp: new Date().toISOString() },
+          ];
+          await updateConversation(conversation.id, updatedMessages, agent);
+          await logEvent("whatsapp_message", { phone: from, intent: agent.toUpperCase(), agent, conversation_id: conversation.id, menu_selection: true });
+          return new Response(JSON.stringify({ status: "ok" }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        }
       }
 
-      // Save messages to conversation
+      // ── Handle greeting / first message ────────────────
+      const isGreeting = /^(hi|hello|hey|start|menu|hii|hiii|yo|sup|assalam|salam|namaste)$/i.test(content.text.trim());
+      const isNewConversation = existingMessages.length === 0;
+
+      if (isGreeting || isNewConversation) {
+        // Send welcome + interactive menu
+        const welcomeText = "Hi there! I'm *Aria*, your AI sales assistant at *MedSource International* 🏥\n\nYour trusted partner for pharmaceutical exports worldwide. 🌍";
+        await sendText(from, welcomeText);
+        await sendMainMenu(from);
+
+        const updatedMessages = [
+          ...existingMessages,
+          { role: "user", content: content.text, timestamp: new Date().toISOString() },
+          { role: "assistant", content: welcomeText, agent_role: "greeting", timestamp: new Date().toISOString() },
+        ];
+        await updateConversation(conversation.id, updatedMessages, "greeting");
+        await logEvent("whatsapp_message", { phone: from, intent: "GREETING", agent: "greeting", conversation_id: conversation.id });
+        return new Response(JSON.stringify({ status: "ok" }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+
+      // ── Handle ongoing conversation ────────────────────
+      const currentAgent = conversation.current_agent || "faq";
+      const aiHistory = existingMessages.map((m: any) => ({ role: m.role as string, content: m.content as string }));
+      aiHistory.push({ role: "user", content: content.text });
+
+      // If user is already in a flow, continue with current agent
+      if (["pricing", "order", "qualifier", "faq"].includes(currentAgent) && !isGreeting) {
+        agent = currentAgent;
+      } else {
+        // Classify intent for free-text
+        const classification = await classifyIntent(aiHistory.slice(-6), LOVABLE_API_KEY);
+        agent = intentToAgent(classification.intent);
+      }
+
+      console.log(`🤖 Agent: ${agent}`);
+
+      // Handle escalation
+      if (agent === "escalate") {
+        aiResponse = "I'll connect you with our team right away.\n\n📞 *+971-4-XXX-XXXX*\n📧 *sales@medsource.com*\n\nA team member will reach out within 24 hours.";
+        await sendText(from, aiResponse);
+      } else {
+        aiResponse = await getAIResponse(agent, aiHistory.slice(-10), LOVABLE_API_KEY, conversation.id);
+        await sendText(from, aiResponse);
+
+        // After AI response, show a subtle back-to-menu option
+        await sendButtons(from, "Anything else?", [
+          { id: "menu_back", title: "↩️ Main Menu" },
+        ]);
+      }
+
       const updatedMessages = [
         ...existingMessages,
-        { role: "user", content: messageText, timestamp: new Date().toISOString() },
+        { role: "user", content: content.text, timestamp: new Date().toISOString() },
         { role: "assistant", content: aiResponse, agent_role: agent, timestamp: new Date().toISOString() },
       ];
       await updateConversation(conversation.id, updatedMessages, agent);
+      await logEvent("whatsapp_message", { phone: from, intent: agent.toUpperCase(), agent, conversation_id: conversation.id });
 
-      // Send reply via WhatsApp
-      const sent = await sendWhatsAppMessage(from, aiResponse);
-      console.log(`📤 Reply sent: ${sent}`);
-
-      // Log analytics
-      await logEvent("whatsapp_message", {
-        phone: from,
-        intent: classification.intent,
-        agent,
-        conversation_id: conversation.id,
-      });
-
-      return new Response(JSON.stringify({ status: "ok" }), {
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return new Response(JSON.stringify({ status: "ok" }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     } catch (e) {
       console.error("Webhook error:", e);
-      // Always return 200 to Meta to avoid retries
-      return new Response(JSON.stringify({ status: "error", message: String(e) }), {
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return new Response(JSON.stringify({ status: "error", message: String(e) }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
   }
 
