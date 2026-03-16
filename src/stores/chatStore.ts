@@ -1,6 +1,5 @@
 import { create } from 'zustand';
 import { Message, Conversation, AgentRole } from '@/types/domain';
-import { SAMPLE_CONVERSATION } from '@/data/sampleData';
 import type { ConversationContext } from '@/services/ai/orchestrator';
 
 interface ChatState {
@@ -9,6 +8,7 @@ interface ChatState {
   contexts: Record<string, ConversationContext>;
   setActiveConversation: (id: string) => void;
   addMessage: (conversationId: string, message: Message) => void;
+  startNewConversation: () => string;
   updateContext: (conversationId: string, updates: Partial<ConversationContext>) => void;
   getContext: (conversationId: string) => ConversationContext;
 }
@@ -20,31 +20,58 @@ const defaultContext = (): ConversationContext => ({
   turnCount: 0,
 });
 
-export const useChatStore = create<ChatState>((set, get) => ({
-  conversations: [SAMPLE_CONVERSATION],
-  activeConversationId: SAMPLE_CONVERSATION.id,
-  contexts: { [SAMPLE_CONVERSATION.id]: defaultContext() },
+function createEmptyConversation(): Conversation {
+  const id = `conv-${Date.now()}`;
+  return {
+    id,
+    leadId: '',
+    leadName: '',
+    status: 'active',
+    messages: [],
+    currentAgent: 'orchestrator',
+    createdAt: new Date().toISOString(),
+    lastMessageAt: new Date().toISOString(),
+  };
+}
 
-  setActiveConversation: (id) => set({ activeConversationId: id }),
+export const useChatStore = create<ChatState>((set, get) => {
+  const initial = createEmptyConversation();
+  return {
+    conversations: [initial],
+    activeConversationId: initial.id,
+    contexts: { [initial.id]: defaultContext() },
 
-  addMessage: (conversationId, message) =>
-    set((state) => ({
-      conversations: state.conversations.map((conv) =>
-        conv.id === conversationId
-          ? { ...conv, messages: [...conv.messages, message], lastMessageAt: message.timestamp }
-          : conv
-      ),
-    })),
+    setActiveConversation: (id) => set({ activeConversationId: id }),
 
-  updateContext: (conversationId, updates) =>
-    set((state) => ({
-      contexts: {
-        ...state.contexts,
-        [conversationId]: { ...(state.contexts[conversationId] || defaultContext()), ...updates },
-      },
-    })),
+    addMessage: (conversationId, message) =>
+      set((state) => ({
+        conversations: state.conversations.map((conv) =>
+          conv.id === conversationId
+            ? { ...conv, messages: [...conv.messages, message], lastMessageAt: message.timestamp }
+            : conv
+        ),
+      })),
 
-  getContext: (conversationId) => {
-    return get().contexts[conversationId] || defaultContext();
-  },
-}));
+    startNewConversation: () => {
+      const conv = createEmptyConversation();
+      set((state) => ({
+        conversations: [...state.conversations, conv],
+        activeConversationId: conv.id,
+        contexts: { ...state.contexts, [conv.id]: defaultContext() },
+      }));
+      return conv.id;
+    },
+
+    updateContext: (conversationId, updates) =>
+      set((state) => ({
+        contexts: {
+          ...state.contexts,
+          [conversationId]: { ...(state.contexts[conversationId] || defaultContext()), ...updates },
+        },
+      })),
+
+    getContext: (conversationId) => {
+      return get().contexts[conversationId] || defaultContext();
+    },
+  };
+});
