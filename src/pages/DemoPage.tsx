@@ -1,13 +1,17 @@
 import { useState, useRef, useEffect } from 'react';
-import { Send, Bot } from 'lucide-react';
+import { Send, Bot, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { MessageBubble } from '@/components/chat/MessageBubble';
 import { useChatStore } from '@/stores/chatStore';
+import { streamChat } from '@/services/ai/streamChat';
+import { toast } from 'sonner';
 
 export default function DemoPage() {
   const { conversations, activeConversationId, addMessage } = useChatStore();
   const [input, setInput] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [streamingContent, setStreamingContent] = useState('');
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const conversation = conversations.find((c) => c.id === activeConversationId);
@@ -15,30 +19,68 @@ export default function DemoPage() {
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages.length]);
+  }, [messages.length, streamingContent]);
 
-  const handleSend = () => {
-    if (!input.trim() || !activeConversationId) return;
+  const handleSend = async () => {
+    if (!input.trim() || !activeConversationId || isLoading) return;
+
+    const userContent = input.trim();
+    setInput('');
+
+    // Add user message
     addMessage(activeConversationId, {
       id: crypto.randomUUID(),
       conversationId: activeConversationId,
       role: 'user',
-      content: input.trim(),
+      content: userContent,
       timestamp: new Date().toISOString(),
     });
-    setInput('');
 
-    // Simulate AI response
-    setTimeout(() => {
-      addMessage(activeConversationId, {
-        id: crypto.randomUUID(),
-        conversationId: activeConversationId,
-        role: 'assistant',
-        content: "Thanks for your message! 👋\n\nThis is a demo — AI agent integration coming soon.\n\nIn production, Aria will route your query to the right specialist agent.",
-        agentRole: 'orchestrator',
-        timestamp: new Date().toISOString(),
+    setIsLoading(true);
+    setStreamingContent('');
+
+    // Build message history for context
+    const history = [
+      ...messages.map((m) => ({
+        role: m.role as 'user' | 'assistant',
+        content: m.content,
+      })),
+      { role: 'user' as const, content: userContent },
+    ].filter((m) => m.role !== 'system' as string);
+
+    let accumulated = '';
+
+    try {
+      await streamChat({
+        messages: history,
+        onDelta: (chunk) => {
+          accumulated += chunk;
+          setStreamingContent(accumulated);
+        },
+        onDone: () => {
+          // Add final assistant message to store
+          addMessage(activeConversationId, {
+            id: crypto.randomUUID(),
+            conversationId: activeConversationId,
+            role: 'assistant',
+            content: accumulated,
+            agentRole: 'orchestrator',
+            timestamp: new Date().toISOString(),
+          });
+          setStreamingContent('');
+          setIsLoading(false);
+        },
+        onError: (error) => {
+          toast.error(error);
+          setStreamingContent('');
+          setIsLoading(false);
+        },
       });
-    }, 1200);
+    } catch (e) {
+      toast.error('Failed to connect to AI service');
+      setStreamingContent('');
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -51,7 +93,7 @@ export default function DemoPage() {
         <div>
           <h1 className="text-sm font-semibold">Aria — MedSource Sales Agent</h1>
           <p className="text-xs text-muted-foreground">
-            {conversation ? `${conversation.leadName} • ${conversation.currentAgent} agent active` : 'No conversation'}
+            {conversation ? `${conversation.leadName} • AI-powered` : 'No conversation'}
           </p>
         </div>
         <span className="ml-auto flex items-center gap-1.5 text-xs text-emerald-500">
@@ -65,6 +107,31 @@ export default function DemoPage() {
           {messages.map((msg) => (
             <MessageBubble key={msg.id} message={msg} />
           ))}
+          {/* Streaming message */}
+          {streamingContent && (
+            <MessageBubble
+              message={{
+                id: 'streaming',
+                conversationId: activeConversationId || '',
+                role: 'assistant',
+                content: streamingContent,
+                agentRole: 'orchestrator',
+                timestamp: new Date().toISOString(),
+              }}
+            />
+          )}
+          {/* Loading indicator */}
+          {isLoading && !streamingContent && (
+            <div className="flex gap-2">
+              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/10">
+                <Bot className="h-3.5 w-3.5 text-primary" />
+              </div>
+              <div className="flex items-center gap-2 rounded-2xl rounded-bl-md bg-muted px-4 py-2.5 text-sm text-muted-foreground">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                Aria is thinking…
+              </div>
+            </div>
+          )}
           <div ref={bottomRef} />
         </div>
       </div>
@@ -77,9 +144,10 @@ export default function DemoPage() {
           onKeyDown={(e) => e.key === 'Enter' && handleSend()}
           placeholder="Type a message…"
           className="flex-1 bg-card"
+          disabled={isLoading}
         />
-        <Button onClick={handleSend} size="icon" className="gradient-bg border-0 text-primary-foreground">
-          <Send className="h-4 w-4" />
+        <Button onClick={handleSend} size="icon" className="gradient-bg border-0 text-primary-foreground" disabled={isLoading}>
+          {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
         </Button>
       </div>
     </div>
