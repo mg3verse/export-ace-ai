@@ -1,73 +1,59 @@
-# Welcome to your Lovable project
+# WhatsApp Sales Agent POC
 
-## Project info
+AI-powered WhatsApp sales assistant for pharmaceutical exports, built as a production-ready proof of concept.
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+## Features
 
-## How can I edit this code?
+- **4 AI Specialist Agents** — Pricing, FAQ, Order Collection, Buyer Qualification
+- **Smart Orchestrator** — Routes conversations to the right agent automatically
+- **Real-time Dashboard** — KPIs, charts, live feed with auto-refresh
+- **Admin Configuration** — Products, FAQs, pricing rules, agent settings
+- **WhatsApp-Style Chat** — Pixel-perfect demo with context pills and progress tracking
+- **Production Architecture** — Error boundaries, code splitting, lazy loading
 
-There are several ways of editing your application.
+## Tech Stack
 
-**Use Lovable**
+- React + TypeScript
+- Tailwind CSS + shadcn/ui
+- Supabase (Database, Edge Functions)
+- Lovable AI Gateway (Gemini 3 Flash)
+- Recharts (Data visualization)
+- Zustand (State management)
+- Framer Motion (Animations)
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
+## Setup
 
-Changes made via Lovable will be committed automatically to this repo.
+1. Clone the repository
+2. `npm install`
+3. Configure your Lovable Cloud backend
+4. `npm run dev`
 
-**Use your preferred IDE**
+## Project Structure
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
-
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
+```
+src/
+├── components/
+│   ├── admin/       # Admin panel tabs
+│   ├── agents/      # AI agent displays
+│   ├── chat/        # WhatsApp chat UI
+│   ├── dashboard/   # Analytics components
+│   └── ui/          # shadcn/ui components
+├── services/
+│   ├── ai/          # Orchestrator, prompts, pricing
+│   └── api.ts       # Database API layer
+├── stores/          # Zustand state stores
+├── types/           # TypeScript interfaces
+└── pages/           # Route pages
 ```
 
-**Edit a file directly in GitHub**
+## Deployment
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+Ready for Vercel/Netlify deployment. Can integrate with real WhatsApp Business API.
 
-**Use GitHub Codespaces**
+## Scaling to Production
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
-
-## What technologies are used for this project?
-
-This project is built with:
-
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
-
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+- Add authentication with role-based access
+- Connect WhatsApp Business API for real messaging
+- Add Redis caching for high-volume scenarios
+- Integrate monitoring (Sentry, DataDog)
+- Replace POC RLS policies with auth-gated ones
