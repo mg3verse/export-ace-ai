@@ -9,6 +9,7 @@ import DemoPage from "@/pages/DemoPage";
 import DashboardPage from "@/pages/DashboardPage";
 import AdminPage from "@/pages/AdminPage";
 import AboutPage from "@/pages/AboutPage";
+import AgentsPage from "@/pages/AgentsPage";
 import NotFound from "./pages/NotFound.tsx";
 
 const queryClient = new QueryClient();
