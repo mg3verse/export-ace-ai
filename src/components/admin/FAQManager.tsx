@@ -20,7 +20,7 @@ export function FAQManager() {
   const [isNew, setIsNew] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
 
-  const [form, setForm] = useState({ category: FAQ_CATEGORIES[0], question: '', answer: '', keywords: '' });
+  const [form, setForm] = useState<{ category: string; question: string; answer: string; keywords: string }>({ category: FAQ_CATEGORIES[0], question: '', answer: '', keywords: '' });
 
   const filtered = faqs.filter((f) => {
     const matchCat = catFilter === 'all' || f.category === catFilter;

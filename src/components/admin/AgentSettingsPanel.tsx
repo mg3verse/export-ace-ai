@@ -48,7 +48,7 @@ export function AgentSettingsPanel() {
   const save = async () => {
     setSaving(true);
     try {
-      await supabase.from('app_settings').upsert({ key: 'agent_config', value: config as unknown as Record<string, unknown>, updated_at: new Date().toISOString() }, { onConflict: 'key' });
+      await supabase.from('app_settings').upsert({ key: 'agent_config', value: config as any, updated_at: new Date().toISOString() } as any, { onConflict: 'key' });
       toast({ title: 'Settings Saved', description: 'Agent configuration updated.' });
     } catch {
       toast({ title: 'Error', description: 'Failed to save settings.', variant: 'destructive' });

@@ -37,8 +37,8 @@ export function PricingRulesEditor() {
   const save = async () => {
     setSaving(true);
     try {
-      for (const [key, value] of [['pricing_tiers', tiers], ['currency_rates', rates]] as const) {
-        await supabase.from('app_settings').upsert({ key, value: value as unknown as Record<string, unknown>, updated_at: new Date().toISOString() }, { onConflict: 'key' });
+      for (const [k, v] of [['pricing_tiers', tiers], ['currency_rates', rates]] as [string, unknown][]) {
+        await supabase.from('app_settings').upsert({ key: k, value: v as Record<string, unknown>, updated_at: new Date().toISOString() } as any, { onConflict: 'key' });
       }
       toast({ title: 'Pricing Rules Saved', description: 'Changes saved to database.' });
     } catch {
