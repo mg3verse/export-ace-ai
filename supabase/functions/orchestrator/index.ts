@@ -260,13 +260,24 @@ async function classifyIntent(
 
   if (!resp.ok) {
     console.error("Classification failed:", resp.status);
+    await resp.text(); // consume body
     return { intent: "FAQ", confidence: 0.5, entities: {} };
   }
 
-  const data = await resp.json();
-  const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
-  if (toolCall?.function?.arguments) {
-    try { return JSON.parse(toolCall.function.arguments); } catch { /* fallback */ }
+  const rawText = await resp.text();
+  if (!rawText) {
+    console.error("Classification returned empty body");
+    return { intent: "FAQ", confidence: 0.5, entities: {} };
+  }
+
+  try {
+    const data = JSON.parse(rawText);
+    const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
+    if (toolCall?.function?.arguments) {
+      try { return JSON.parse(toolCall.function.arguments); } catch { /* fallback */ }
+    }
+  } catch (e) {
+    console.error("Classification JSON parse error:", e, "body:", rawText.slice(0, 200));
   }
   return { intent: "FAQ", confidence: 0.5, entities: {} };
 }
