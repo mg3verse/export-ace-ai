@@ -796,6 +796,15 @@ serve(async (req) => {
       if (agent === "escalate") {
         aiResponse = "I'll connect you with our team right away.\n\n📞 *+971-4-XXX-XXXX*\n📧 *sales@medsource.com*\n\nA team member will reach out within 24 hours.";
         await sendText(from, aiResponse);
+
+        // Alert admin about escalation
+        await triggerAdminAlert(
+          "escalation", "high",
+          `🔴 Customer Escalation`,
+          `Customer ${from} requested human support. Check conversation for context.`,
+          conversation.id, undefined,
+          { phone: from, last_message: content.text }
+        );
       } else {
         aiResponse = await getAIResponse(agent, aiHistory.slice(-10), LOVABLE_API_KEY, conversation.id);
         await sendText(from, aiResponse);
