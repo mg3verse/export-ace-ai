@@ -294,8 +294,15 @@ const ALL_TOOLS = [
       },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "list_catalog",
+      description: "List all available products in the catalog grouped by category. Use when user asks what's available, wants to browse, or says 'catalog'",
+      parameters: { type: "object", properties: {}, required: [] },
+    },
+  },
 ];
-
 // ── Agent prompts (concise, WhatsApp-optimized) ──────────
 const AGENT_PROMPTS: Record<string, string> = {
   pricing: `You are Aria, pricing specialist at MedSource International — a B2B pharmaceutical export company.
