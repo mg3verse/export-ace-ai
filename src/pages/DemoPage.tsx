@@ -9,6 +9,7 @@ import { useChatStore } from '@/stores/chatStore';
 import { streamOrchestrated, buildContextWindow } from '@/services/ai/orchestrator';
 import { DEMO_SCENARIOS } from '@/data/demoScenarios';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
 import type { AgentRole, Message } from '@/types/domain';
 
 const AGENT_LABELS: Record<string, string> = {
@@ -86,16 +87,28 @@ export default function DemoPage() {
         });
       },
       onDone: () => {
-        addMessage(activeConversationId, {
+        const assistantMsg: Message = {
           id: crypto.randomUUID(),
           conversationId: activeConversationId,
           role: 'assistant',
           content: accumulated,
           agentRole: resolvedAgent,
           timestamp: new Date().toISOString(),
-        });
+        };
+        addMessage(activeConversationId, assistantMsg);
         setStreamingContent('');
         setIsLoading(false);
+
+        // Persist to DB (fire-and-forget)
+        const allMsgs = [...messages, { role: 'user', content: userContent.trim(), timestamp: new Date().toISOString() }, { role: 'assistant', content: accumulated, agent_role: resolvedAgent, timestamp: new Date().toISOString() }];
+        supabase.from('conversations').upsert({
+          id: activeConversationId,
+          session_id: activeConversationId,
+          messages: allMsgs as any,
+          current_agent: resolvedAgent,
+          conversation_state: 'active',
+          lead_score: context.turnCount + 1,
+        }, { onConflict: 'id' }).then(() => {});
       },
       onError: (error) => {
         toast.error(error);
