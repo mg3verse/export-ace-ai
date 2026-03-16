@@ -86,7 +86,7 @@ export function AlertBell() {
   };
 
   const handleDismiss = async (id: string) => {
-    await supabase.from('admin_alerts').update({ status: 'dismissed', resolved_at: new Date().toISOString() }).eq('id', id);
+    await (supabase as any).from('admin_alerts').update({ status: 'dismissed', resolved_at: new Date().toISOString() }).eq('id', id);
     setAlerts(prev => prev.filter(a => a.id !== id));
   };
 
