@@ -18,6 +18,7 @@ import { PricingRulesEditor } from '@/components/admin/PricingRulesEditor';
 import { AgentSettingsPanel } from '@/components/admin/AgentSettingsPanel';
 import { IntegrationsPanel } from '@/components/admin/IntegrationsPanel';
 import { TeamPanel } from '@/components/admin/TeamPanel';
+import { ConversationsPanel } from '@/components/admin/ConversationsPanel';
 import type { Tables } from '@/integrations/supabase/types';
 
 type DbProduct = Tables<'products'>;
@@ -111,6 +112,7 @@ export default function AdminPage() {
       <Tabs defaultValue="products">
         <ScrollArea className="w-full">
           <TabsList className="mb-6 w-max">
+            <TabsTrigger value="conversations">Conversations</TabsTrigger>
             <TabsTrigger value="products">Products</TabsTrigger>
             <TabsTrigger value="faq">FAQ Knowledge</TabsTrigger>
             <TabsTrigger value="pricing">Pricing Rules</TabsTrigger>
@@ -120,6 +122,9 @@ export default function AdminPage() {
           </TabsList>
           <ScrollBar orientation="horizontal" />
         </ScrollArea>
+
+        {/* Conversations */}
+        <TabsContent value="conversations"><ConversationsPanel /></TabsContent>
 
         {/* Tab 1: Products */}
         <TabsContent value="products">
