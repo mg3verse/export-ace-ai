@@ -19,6 +19,7 @@ import { AgentSettingsPanel } from '@/components/admin/AgentSettingsPanel';
 import { IntegrationsPanel } from '@/components/admin/IntegrationsPanel';
 import { TeamPanel } from '@/components/admin/TeamPanel';
 import { ConversationsPanel } from '@/components/admin/ConversationsPanel';
+import { TransactionsPanel } from '@/components/admin/TransactionsPanel';
 import type { Tables } from '@/integrations/supabase/types';
 
 type DbProduct = Tables<'products'>;
@@ -117,6 +118,7 @@ export default function AdminPage() {
             <TabsTrigger value="faq">FAQ Knowledge</TabsTrigger>
             <TabsTrigger value="pricing">Pricing Rules</TabsTrigger>
             <TabsTrigger value="agents">Agent Settings</TabsTrigger>
+            <TabsTrigger value="transactions">Purchases & Sales</TabsTrigger>
             <TabsTrigger value="integrations">Integrations</TabsTrigger>
             <TabsTrigger value="team">Team & Access</TabsTrigger>
           </TabsList>
@@ -199,6 +201,9 @@ export default function AdminPage() {
 
         {/* Tab 4: Agents */}
         <TabsContent value="agents"><AgentSettingsPanel /></TabsContent>
+
+        {/* Purchases & Sales */}
+        <TabsContent value="transactions"><TransactionsPanel /></TabsContent>
 
         {/* Tab 5: Integrations */}
         <TabsContent value="integrations"><IntegrationsPanel /></TabsContent>

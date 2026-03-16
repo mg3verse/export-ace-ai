@@ -216,6 +216,132 @@ export type Database = {
         }
         Relationships: []
       }
+      purchases: {
+        Row: {
+          batch: string | null
+          bill_amount: number
+          bill_discount: number | null
+          company: string | null
+          cost_per_strip: number | null
+          created_at: string
+          entry_no: string | null
+          exp_date: string | null
+          gst_pct: number | null
+          id: string
+          invoice_number: string
+          mfg_date: string | null
+          product_name: string
+          purchase_date: string
+          qty: number
+          rate_per_strip: number
+          salt_name: string | null
+          supplier_name: string
+          total_amount: number
+        }
+        Insert: {
+          batch?: string | null
+          bill_amount?: number
+          bill_discount?: number | null
+          company?: string | null
+          cost_per_strip?: number | null
+          created_at?: string
+          entry_no?: string | null
+          exp_date?: string | null
+          gst_pct?: number | null
+          id?: string
+          invoice_number: string
+          mfg_date?: string | null
+          product_name: string
+          purchase_date: string
+          qty?: number
+          rate_per_strip?: number
+          salt_name?: string | null
+          supplier_name: string
+          total_amount?: number
+        }
+        Update: {
+          batch?: string | null
+          bill_amount?: number
+          bill_discount?: number | null
+          company?: string | null
+          cost_per_strip?: number | null
+          created_at?: string
+          entry_no?: string | null
+          exp_date?: string | null
+          gst_pct?: number | null
+          id?: string
+          invoice_number?: string
+          mfg_date?: string | null
+          product_name?: string
+          purchase_date?: string
+          qty?: number
+          rate_per_strip?: number
+          salt_name?: string | null
+          supplier_name?: string
+          total_amount?: number
+        }
+        Relationships: []
+      }
+      sales: {
+        Row: {
+          batch: string | null
+          bill_amount: number
+          company: string | null
+          cost: number | null
+          cost_amount: number | null
+          created_at: string
+          customer_name: string
+          exp_date: string | null
+          id: string
+          invoice_number: string
+          mfg_date: string | null
+          product_name: string
+          qty: number
+          sale_date: string
+          salt_name: string | null
+          selling_price: number
+          total_selling_amount: number
+        }
+        Insert: {
+          batch?: string | null
+          bill_amount?: number
+          company?: string | null
+          cost?: number | null
+          cost_amount?: number | null
+          created_at?: string
+          customer_name: string
+          exp_date?: string | null
+          id?: string
+          invoice_number: string
+          mfg_date?: string | null
+          product_name: string
+          qty?: number
+          sale_date: string
+          salt_name?: string | null
+          selling_price?: number
+          total_selling_amount?: number
+        }
+        Update: {
+          batch?: string | null
+          bill_amount?: number
+          company?: string | null
+          cost?: number | null
+          cost_amount?: number | null
+          created_at?: string
+          customer_name?: string
+          exp_date?: string | null
+          id?: string
+          invoice_number?: string
+          mfg_date?: string | null
+          product_name?: string
+          qty?: number
+          sale_date?: string
+          salt_name?: string | null
+          selling_price?: number
+          total_selling_amount?: number
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
