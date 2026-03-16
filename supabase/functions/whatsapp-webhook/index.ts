@@ -493,7 +493,7 @@ async function getAIResponse(
   conversationId?: string
 ): Promise<string> {
   const systemPrompt = AGENT_PROMPTS[agent] || AGENT_PROMPTS.faq;
-  const useTools = ["pricing", "order", "qualifier"].includes(agent);
+  const useTools = ["pricing", "order", "qualifier", "faq"].includes(agent);
 
   let agentMessages: any[] = [{ role: "system", content: systemPrompt }, ...messages];
   let maxIterations = 5;
