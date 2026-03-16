@@ -1,12 +1,30 @@
+import { useEffect } from 'react';
 import { DollarSign, Users, TrendingUp, ShoppingCart } from 'lucide-react';
 import { MetricCard } from '@/components/dashboard/MetricCard';
 import { RevenueChart } from '@/components/dashboard/RevenueChart';
 import { OrderTable } from '@/components/dashboard/OrderTable';
 import { useDashboardStore } from '@/stores/dashboardStore';
 import { formatCurrency } from '@/utils/formatters';
+import { Skeleton } from '@/components/ui/skeleton';
 
 export default function DashboardPage() {
-  const { data } = useDashboardStore();
+  const { data, isLoading, fetchData } = useDashboardStore();
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  if (isLoading && data.totalRevenue === 0) {
+    return (
+      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+        <Skeleton className="mb-8 h-10 w-48" />
+        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+          {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-28 rounded-xl" />)}
+        </div>
+        <Skeleton className="mt-8 h-80 rounded-xl" />
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
@@ -35,10 +53,7 @@ export default function DashboardPage() {
                   <span className="text-sm font-medium">{item.country}</span>
                   <div className="flex items-center gap-3">
                     <div className="h-2 w-24 overflow-hidden rounded-full bg-muted">
-                      <div
-                        className="h-full rounded-full gradient-bg"
-                        style={{ width: `${(item.count / 4) * 100}%` }}
-                      />
+                      <div className="h-full rounded-full gradient-bg" style={{ width: `${(item.count / 4) * 100}%` }} />
                     </div>
                     <span className="w-6 text-right text-sm font-semibold text-muted-foreground">{item.count}</span>
                   </div>
