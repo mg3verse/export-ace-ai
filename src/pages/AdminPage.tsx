@@ -112,6 +112,7 @@ export default function AdminPage() {
       <Tabs defaultValue="products">
         <ScrollArea className="w-full">
           <TabsList className="mb-6 w-max">
+            <TabsTrigger value="conversations">Conversations</TabsTrigger>
             <TabsTrigger value="products">Products</TabsTrigger>
             <TabsTrigger value="faq">FAQ Knowledge</TabsTrigger>
             <TabsTrigger value="pricing">Pricing Rules</TabsTrigger>
