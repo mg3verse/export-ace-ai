@@ -464,7 +464,30 @@ serve(async (req) => {
   // ── POST: Incoming WhatsApp messages ───────────────────
   if (req.method === "POST") {
     try {
-      const body = await req.json();
+      const rawBody = await req.text();
+
+      // Verify X-Hub-Signature-256 if app secret is configured
+      const appSecret = Deno.env.get("WHATSAPP_APP_SECRET");
+      if (appSecret) {
+        const signature = req.headers.get("x-hub-signature-256");
+        if (signature) {
+          const key = await crypto.subtle.importKey(
+            "raw",
+            new TextEncoder().encode(appSecret),
+            { name: "HMAC", hash: "SHA-256" },
+            false,
+            ["sign"]
+          );
+          const sig = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(rawBody));
+          const expected = "sha256=" + Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2, "0")).join("");
+          if (expected !== signature) {
+            console.error("Invalid webhook signature");
+            return new Response("Invalid signature", { status: 403 });
+          }
+        }
+      }
+
+      const body = JSON.parse(rawBody);
 
       // Meta sends various webhook events — we only care about messages
       const entry = body?.entry?.[0];
