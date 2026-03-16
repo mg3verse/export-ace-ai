@@ -47,8 +47,8 @@ export function Navbar() {
         </div>
 
         <div className="hidden md:flex">
-          <Button size="sm" className="gradient-bg border-0 text-primary-foreground">
-            Get Started
+          <Button asChild size="sm" className="gradient-bg border-0 text-primary-foreground">
+            <Link to="/demo">Get Started</Link>
           </Button>
         </div>
 
@@ -81,8 +81,8 @@ export function Navbar() {
               {item.label}
             </Link>
           ))}
-          <Button size="sm" className="mt-3 w-full gradient-bg border-0 text-primary-foreground">
-            Get Started
+          <Button asChild size="sm" className="mt-3 w-full gradient-bg border-0 text-primary-foreground">
+            <Link to="/demo">Get Started</Link>
           </Button>
         </div>
       )}
