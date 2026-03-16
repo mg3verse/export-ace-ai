@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -7,6 +8,82 @@ const corsHeaders = {
 };
 
 const AI_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
+
+const PRICING_TIERS = [
+  { minQty: 1, maxQty: 10, discountPct: 0 },
+  { minQty: 11, maxQty: 50, discountPct: 10 },
+  { minQty: 51, maxQty: 100, discountPct: 15 },
+  { minQty: 101, maxQty: Infinity, discountPct: 20 },
+];
+
+function getDiscount(qty: number): number {
+  return (PRICING_TIERS.find((t) => qty >= t.minQty && qty <= t.maxQty) ?? PRICING_TIERS[0]).discountPct;
+}
+
+// Tool: search products from DB
+async function searchProductTool(query: string): Promise<string> {
+  const sb = createClient(
+    Deno.env.get("SUPABASE_URL")!,
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+  );
+  const { data, error } = await sb
+    .from("products")
+    .select("sku, name, price_usd, stock_quantity, category")
+    .or(`sku.ilike.%${query}%,name.ilike.%${query}%`)
+    .limit(5);
+  if (error) return JSON.stringify({ error: error.message });
+  if (!data || data.length === 0) return JSON.stringify({ error: "No products found" });
+  return JSON.stringify(data);
+}
+
+// Tool: calculate price with volume discounts
+function calculatePriceTool(basePrice: number, quantity: number, currency: string): string {
+  const rates: Record<string, number> = { USD: 1, EUR: 0.92, GBP: 0.79, INR: 83.5, AED: 3.67, NGN: 1550, KES: 153, PHP: 56.5, SAR: 3.75 };
+  const disc = getDiscount(quantity);
+  const unitPrice = basePrice * (1 - disc / 100);
+  const subtotal = unitPrice * quantity;
+  const rate = rates[currency] ?? 1;
+  return JSON.stringify({
+    basePrice,
+    quantity,
+    discountPct: disc,
+    unitPrice: Math.round(unitPrice * 100) / 100,
+    subtotalUSD: Math.round(subtotal * 100) / 100,
+    currency,
+    total: Math.round(subtotal * rate * 100) / 100,
+  });
+}
+
+const PRICING_TOOLS = [
+  {
+    type: "function",
+    function: {
+      name: "search_product",
+      description: "Search for pharmaceutical products by name or SKU",
+      parameters: {
+        type: "object",
+        properties: { query: { type: "string", description: "Product name or SKU" } },
+        required: ["query"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "calculate_price",
+      description: "Calculate price with volume discounts and currency conversion",
+      parameters: {
+        type: "object",
+        properties: {
+          base_price: { type: "number", description: "Base price per unit in USD" },
+          quantity: { type: "number", description: "Number of units/boxes" },
+          currency: { type: "string", description: "Target currency code (USD, EUR, INR, etc.)", default: "USD" },
+        },
+        required: ["base_price", "quantity"],
+      },
+    },
+  },
+];
 
 // ── Intent classification prompt ───────────────────────
 const CLASSIFIER_PROMPT = `You are an intent classifier for MedSource International, a pharmaceutical B2B export company.
