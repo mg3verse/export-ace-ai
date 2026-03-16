@@ -118,6 +118,7 @@ export default function AdminPage() {
             <TabsTrigger value="faq">FAQ Knowledge</TabsTrigger>
             <TabsTrigger value="pricing">Pricing Rules</TabsTrigger>
             <TabsTrigger value="agents">Agent Settings</TabsTrigger>
+            <TabsTrigger value="transactions">Purchases & Sales</TabsTrigger>
             <TabsTrigger value="integrations">Integrations</TabsTrigger>
             <TabsTrigger value="team">Team & Access</TabsTrigger>
           </TabsList>
