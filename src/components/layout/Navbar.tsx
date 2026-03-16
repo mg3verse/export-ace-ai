@@ -3,6 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { Menu, X, Pill } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { AlertBell } from '@/components/alerts/AlertBell';
 
 const NAV_ITEMS = [
   { label: 'Demo', href: '/demo' },
@@ -46,7 +47,8 @@ export function Navbar() {
           ))}
         </div>
 
-        <div className="hidden md:flex">
+        <div className="hidden items-center gap-2 md:flex">
+          <AlertBell />
           <Button asChild size="sm" className="gradient-bg border-0 text-primary-foreground">
             <Link to="/demo">Get Started</Link>
           </Button>
