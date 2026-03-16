@@ -5,3 +5,9 @@ verify_jwt = false
 
 [functions.orchestrator]
 verify_jwt = false
+
+[functions.send-admin-alert]
+verify_jwt = false
+
+[functions.whatsapp-webhook]
+verify_jwt = false
