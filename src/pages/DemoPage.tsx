@@ -9,6 +9,7 @@ import { useChatStore } from '@/stores/chatStore';
 import { streamOrchestrated, buildContextWindow } from '@/services/ai/orchestrator';
 import { DEMO_SCENARIOS } from '@/data/demoScenarios';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
 import type { AgentRole, Message } from '@/types/domain';
 
 const AGENT_LABELS: Record<string, string> = {
