@@ -263,9 +263,111 @@ serve(async (req) => {
       });
     }
 
-    // Step 3: Get agent response (streaming)
+    // Step 3: For pricing agent, use tool calling loop; for others, stream directly
     const systemPrompt = AGENT_PROMPTS[agent] || AGENT_PROMPTS.faq;
+    const isPricing = agent === "pricing";
 
+    if (isPricing) {
+      // Tool-calling loop for pricing agent
+      let agentMessages: any[] = [
+        { role: "system", content: systemPrompt },
+        ...messages,
+      ];
+      let maxIterations = 3;
+
+      while (maxIterations-- > 0) {
+        const toolResp = await fetch(AI_URL, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${LOVABLE_API_KEY}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model: "google/gemini-3-flash-preview",
+            messages: agentMessages,
+            tools: PRICING_TOOLS,
+          }),
+        });
+
+        if (!toolResp.ok) break;
+        const toolData = await toolResp.json();
+        const choice = toolData.choices?.[0];
+        const toolCalls = choice?.message?.tool_calls;
+
+        if (!toolCalls || toolCalls.length === 0) {
+          // No more tool calls — final answer available, stream it
+          break;
+        }
+
+        // Execute tool calls
+        agentMessages.push(choice.message);
+        for (const tc of toolCalls) {
+          let result = "{}";
+          try {
+            const args = JSON.parse(tc.function.arguments);
+            if (tc.function.name === "search_product") {
+              result = await searchProductTool(args.query);
+            } else if (tc.function.name === "calculate_price") {
+              result = calculatePriceTool(args.base_price, args.quantity, args.currency || "USD");
+            }
+          } catch (e) {
+            result = JSON.stringify({ error: String(e) });
+          }
+          agentMessages.push({
+            role: "tool",
+            tool_call_id: tc.id,
+            content: result,
+          });
+        }
+      }
+
+      // Final streaming response with tool results in context
+      const response = await fetch(AI_URL, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${LOVABLE_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "google/gemini-3-flash-preview",
+          messages: agentMessages,
+          stream: true,
+        }),
+      });
+
+      if (!response.ok) {
+        const t = await response.text();
+        console.error("Pricing agent error:", response.status, t);
+        return new Response(
+          JSON.stringify({ error: "AI service temporarily unavailable" }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Prepend meta + stream
+      const metaEvent2 = `data: ${JSON.stringify({ type: "meta", data: { intent: classification.intent, confidence: classification.confidence, agent, entities: classification.entities } })}\n\n`;
+      const metaBytes2 = new TextEncoder().encode(metaEvent2);
+      const combinedStream2 = new ReadableStream({
+        async start(controller) {
+          controller.enqueue(metaBytes2);
+          const reader = response.body!.getReader();
+          try {
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+              controller.enqueue(value);
+            }
+          } finally {
+            controller.close();
+          }
+        },
+      });
+      return new Response(combinedStream2, {
+        headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
+      });
+    }
+
+    // Non-pricing agents: simple streaming
     const response = await fetch(AI_URL, {
       method: "POST",
       headers: {
