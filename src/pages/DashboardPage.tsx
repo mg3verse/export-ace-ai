@@ -2,10 +2,22 @@ import { useEffect } from 'react';
 import { DollarSign, Users, TrendingUp, ShoppingCart } from 'lucide-react';
 import { MetricCard } from '@/components/dashboard/MetricCard';
 import { RevenueChart } from '@/components/dashboard/RevenueChart';
-import { OrderTable } from '@/components/dashboard/OrderTable';
 import { useDashboardStore } from '@/stores/dashboardStore';
 import { formatCurrency } from '@/utils/formatters';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
+
+const STATUS_STYLES: Record<string, string> = {
+  pending: 'bg-amber-500/10 text-amber-600 border-amber-500/20',
+  confirmed: 'bg-primary/10 text-primary border-primary/20',
+  shipped: 'bg-violet-500/10 text-violet-600 border-violet-500/20',
+  delivered: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20',
+  cancelled: 'bg-destructive/10 text-destructive border-destructive/20',
+  draft: 'bg-muted text-muted-foreground border-border',
+};
 
 export default function DashboardPage() {
   const { data, isLoading, fetchData } = useDashboardStore();
@@ -46,7 +58,7 @@ export default function DashboardPage() {
         </div>
         <div className="lg:col-span-2">
           <div className="glass-card rounded-xl border border-border/50 p-6">
-            <h3 className="mb-4 text-lg font-semibold">Leads by Market</h3>
+            <h3 className="mb-4 text-lg font-semibold">Leads by Company</h3>
             <div className="space-y-3">
               {data.leadsByCountry.map((item) => (
                 <div key={item.country} className="flex items-center justify-between">
@@ -65,7 +77,41 @@ export default function DashboardPage() {
       </div>
 
       <div className="mt-8">
-        <OrderTable orders={data.recentOrders} />
+        <Card className="glass-card border-border/50">
+          <CardHeader>
+            <CardTitle className="text-lg">Recent Orders</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {data.recentOrders.length === 0 ? (
+              <p className="text-sm text-muted-foreground py-4 text-center">No orders yet</p>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Order ID</TableHead>
+                    <TableHead>Customer</TableHead>
+                    <TableHead className="text-right">Value</TableHead>
+                    <TableHead>Status</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {data.recentOrders.map((order) => (
+                    <TableRow key={order.id}>
+                      <TableCell className="font-mono text-sm">{order.id.slice(0, 8)}</TableCell>
+                      <TableCell className="font-medium">{order.customer_name}</TableCell>
+                      <TableCell className="text-right font-semibold">{formatCurrency(Number(order.total_amount))}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className={cn('capitalize', STATUS_STYLES[order.status] ?? '')}>
+                          {order.status}
+                        </Badge>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+        </Card>
       </div>
     </div>
   );
