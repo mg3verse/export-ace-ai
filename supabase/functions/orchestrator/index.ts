@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -7,6 +8,82 @@ const corsHeaders = {
 };
 
 const AI_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
+
+const PRICING_TIERS = [
+  { minQty: 1, maxQty: 10, discountPct: 0 },
+  { minQty: 11, maxQty: 50, discountPct: 10 },
+  { minQty: 51, maxQty: 100, discountPct: 15 },
+  { minQty: 101, maxQty: Infinity, discountPct: 20 },
+];
+
+function getDiscount(qty: number): number {
+  return (PRICING_TIERS.find((t) => qty >= t.minQty && qty <= t.maxQty) ?? PRICING_TIERS[0]).discountPct;
+}
+
+// Tool: search products from DB
+async function searchProductTool(query: string): Promise<string> {
+  const sb = createClient(
+    Deno.env.get("SUPABASE_URL")!,
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+  );
+  const { data, error } = await sb
+    .from("products")
+    .select("sku, name, price_usd, stock_quantity, category")
+    .or(`sku.ilike.%${query}%,name.ilike.%${query}%`)
+    .limit(5);
+  if (error) return JSON.stringify({ error: error.message });
+  if (!data || data.length === 0) return JSON.stringify({ error: "No products found" });
+  return JSON.stringify(data);
+}
+
+// Tool: calculate price with volume discounts
+function calculatePriceTool(basePrice: number, quantity: number, currency: string): string {
+  const rates: Record<string, number> = { USD: 1, EUR: 0.92, GBP: 0.79, INR: 83.5, AED: 3.67, NGN: 1550, KES: 153, PHP: 56.5, SAR: 3.75 };
+  const disc = getDiscount(quantity);
+  const unitPrice = basePrice * (1 - disc / 100);
+  const subtotal = unitPrice * quantity;
+  const rate = rates[currency] ?? 1;
+  return JSON.stringify({
+    basePrice,
+    quantity,
+    discountPct: disc,
+    unitPrice: Math.round(unitPrice * 100) / 100,
+    subtotalUSD: Math.round(subtotal * 100) / 100,
+    currency,
+    total: Math.round(subtotal * rate * 100) / 100,
+  });
+}
+
+const PRICING_TOOLS = [
+  {
+    type: "function",
+    function: {
+      name: "search_product",
+      description: "Search for pharmaceutical products by name or SKU",
+      parameters: {
+        type: "object",
+        properties: { query: { type: "string", description: "Product name or SKU" } },
+        required: ["query"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "calculate_price",
+      description: "Calculate price with volume discounts and currency conversion",
+      parameters: {
+        type: "object",
+        properties: {
+          base_price: { type: "number", description: "Base price per unit in USD" },
+          quantity: { type: "number", description: "Number of units/boxes" },
+          currency: { type: "string", description: "Target currency code (USD, EUR, INR, etc.)", default: "USD" },
+        },
+        required: ["base_price", "quantity"],
+      },
+    },
+  },
+];
 
 // ── Intent classification prompt ───────────────────────
 const CLASSIFIER_PROMPT = `You are an intent classifier for MedSource International, a pharmaceutical B2B export company.
@@ -186,9 +263,111 @@ serve(async (req) => {
       });
     }
 
-    // Step 3: Get agent response (streaming)
+    // Step 3: For pricing agent, use tool calling loop; for others, stream directly
     const systemPrompt = AGENT_PROMPTS[agent] || AGENT_PROMPTS.faq;
+    const isPricing = agent === "pricing";
 
+    if (isPricing) {
+      // Tool-calling loop for pricing agent
+      let agentMessages: any[] = [
+        { role: "system", content: systemPrompt },
+        ...messages,
+      ];
+      let maxIterations = 3;
+
+      while (maxIterations-- > 0) {
+        const toolResp = await fetch(AI_URL, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${LOVABLE_API_KEY}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model: "google/gemini-3-flash-preview",
+            messages: agentMessages,
+            tools: PRICING_TOOLS,
+          }),
+        });
+
+        if (!toolResp.ok) break;
+        const toolData = await toolResp.json();
+        const choice = toolData.choices?.[0];
+        const toolCalls = choice?.message?.tool_calls;
+
+        if (!toolCalls || toolCalls.length === 0) {
+          // No more tool calls — final answer available, stream it
+          break;
+        }
+
+        // Execute tool calls
+        agentMessages.push(choice.message);
+        for (const tc of toolCalls) {
+          let result = "{}";
+          try {
+            const args = JSON.parse(tc.function.arguments);
+            if (tc.function.name === "search_product") {
+              result = await searchProductTool(args.query);
+            } else if (tc.function.name === "calculate_price") {
+              result = calculatePriceTool(args.base_price, args.quantity, args.currency || "USD");
+            }
+          } catch (e) {
+            result = JSON.stringify({ error: String(e) });
+          }
+          agentMessages.push({
+            role: "tool",
+            tool_call_id: tc.id,
+            content: result,
+          });
+        }
+      }
+
+      // Final streaming response with tool results in context
+      const response = await fetch(AI_URL, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${LOVABLE_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "google/gemini-3-flash-preview",
+          messages: agentMessages,
+          stream: true,
+        }),
+      });
+
+      if (!response.ok) {
+        const t = await response.text();
+        console.error("Pricing agent error:", response.status, t);
+        return new Response(
+          JSON.stringify({ error: "AI service temporarily unavailable" }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Prepend meta + stream
+      const metaEvent2 = `data: ${JSON.stringify({ type: "meta", data: { intent: classification.intent, confidence: classification.confidence, agent, entities: classification.entities } })}\n\n`;
+      const metaBytes2 = new TextEncoder().encode(metaEvent2);
+      const combinedStream2 = new ReadableStream({
+        async start(controller) {
+          controller.enqueue(metaBytes2);
+          const reader = response.body!.getReader();
+          try {
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+              controller.enqueue(value);
+            }
+          } finally {
+            controller.close();
+          }
+        },
+      });
+      return new Response(combinedStream2, {
+        headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
+      });
+    }
+
+    // Non-pricing agents: simple streaming
     const response = await fetch(AI_URL, {
       method: "POST",
       headers: {

@@ -9,6 +9,7 @@ import DemoPage from "@/pages/DemoPage";
 import DashboardPage from "@/pages/DashboardPage";
 import AdminPage from "@/pages/AdminPage";
 import AboutPage from "@/pages/AboutPage";
+import AgentsPage from "@/pages/AgentsPage";
 import NotFound from "./pages/NotFound.tsx";
 
 const queryClient = new QueryClient();
@@ -25,6 +26,7 @@ const App = () => (
             <Route path="/demo" element={<DemoPage />} />
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/admin" element={<AdminPage />} />
+            <Route path="/agents" element={<AgentsPage />} />
             <Route path="/about" element={<AboutPage />} />
           </Route>
           <Route path="*" element={<NotFound />} />
