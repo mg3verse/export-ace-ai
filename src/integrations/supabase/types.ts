@@ -14,135 +14,186 @@ export type Database = {
   }
   public: {
     Tables: {
-      leads: {
+      analytics_events: {
         Row: {
-          company_name: string
-          contact_name: string
-          country: string
-          created_at: string
-          email: string | null
+          event_data: Json | null
+          event_type: string
           id: string
-          is_qualified: boolean
-          last_contact_at: string | null
-          license_number: string | null
-          phone: string | null
-          tier: string
+          timestamp: string
         }
         Insert: {
-          company_name: string
-          contact_name: string
-          country: string
-          created_at?: string
-          email?: string | null
+          event_data?: Json | null
+          event_type: string
           id?: string
-          is_qualified?: boolean
-          last_contact_at?: string | null
-          license_number?: string | null
-          phone?: string | null
-          tier?: string
+          timestamp?: string
         }
         Update: {
-          company_name?: string
-          contact_name?: string
-          country?: string
-          created_at?: string
-          email?: string | null
+          event_data?: Json | null
+          event_type?: string
           id?: string
-          is_qualified?: boolean
-          last_contact_at?: string | null
-          license_number?: string | null
-          phone?: string | null
-          tier?: string
+          timestamp?: string
         }
         Relationships: []
       }
-      order_items: {
+      conversations: {
         Row: {
-          discount: number
+          conversation_state: string | null
+          created_at: string
+          current_agent: string | null
           id: string
-          line_total: number
-          order_id: string
-          product_id: string
-          product_name: string
-          quantity: number
-          sku: string
-          unit_price: number
+          lead_score: number | null
+          messages: Json | null
+          phone_number: string | null
+          session_id: string | null
+          updated_at: string
         }
         Insert: {
-          discount?: number
+          conversation_state?: string | null
+          created_at?: string
+          current_agent?: string | null
           id?: string
-          line_total: number
-          order_id: string
-          product_id: string
-          product_name: string
-          quantity: number
-          sku: string
-          unit_price: number
+          lead_score?: number | null
+          messages?: Json | null
+          phone_number?: string | null
+          session_id?: string | null
+          updated_at?: string
         }
         Update: {
-          discount?: number
+          conversation_state?: string | null
+          created_at?: string
+          current_agent?: string | null
           id?: string
-          line_total?: number
-          order_id?: string
-          product_id?: string
-          product_name?: string
-          quantity?: number
-          sku?: string
-          unit_price?: number
+          lead_score?: number | null
+          messages?: Json | null
+          phone_number?: string | null
+          session_id?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      leads: {
+        Row: {
+          company_name: string
+          contact_person: string | null
+          conversation_id: string | null
+          created_at: string
+          email: string | null
+          id: string
+          lead_score: number | null
+          phone: string | null
+          qualification_data: Json | null
+          status: string
+        }
+        Insert: {
+          company_name: string
+          contact_person?: string | null
+          conversation_id?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          lead_score?: number | null
+          phone?: string | null
+          qualification_data?: Json | null
+          status?: string
+        }
+        Update: {
+          company_name?: string
+          contact_person?: string | null
+          conversation_id?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          lead_score?: number | null
+          phone?: string | null
+          qualification_data?: Json | null
+          status?: string
         }
         Relationships: [
           {
-            foreignKeyName: "order_items_order_id_fkey"
-            columns: ["order_id"]
+            foreignKeyName: "leads_conversation_id_fkey"
+            columns: ["conversation_id"]
             isOneToOne: false
-            referencedRelation: "orders"
+            referencedRelation: "conversations"
             referencedColumns: ["id"]
           },
         ]
       }
       orders: {
         Row: {
-          company_name: string
-          country: string
+          conversation_id: string | null
           created_at: string
+          customer_name: string
+          delivery_address: string | null
           id: string
-          lead_id: string | null
-          shipping_address: string | null
+          products: Json | null
           status: string
-          total_value: number
-          updated_at: string
+          total_amount: number
         }
         Insert: {
-          company_name: string
-          country: string
+          conversation_id?: string | null
           created_at?: string
-          id: string
-          lead_id?: string | null
-          shipping_address?: string | null
+          customer_name: string
+          delivery_address?: string | null
+          id?: string
+          products?: Json | null
           status?: string
-          total_value?: number
-          updated_at?: string
+          total_amount?: number
         }
         Update: {
-          company_name?: string
-          country?: string
+          conversation_id?: string | null
           created_at?: string
+          customer_name?: string
+          delivery_address?: string | null
           id?: string
-          lead_id?: string | null
-          shipping_address?: string | null
+          products?: Json | null
           status?: string
-          total_value?: number
-          updated_at?: string
+          total_amount?: number
         }
         Relationships: [
           {
-            foreignKeyName: "orders_lead_id_fkey"
-            columns: ["lead_id"]
+            foreignKeyName: "orders_conversation_id_fkey"
+            columns: ["conversation_id"]
             isOneToOne: false
-            referencedRelation: "leads"
+            referencedRelation: "conversations"
             referencedColumns: ["id"]
           },
         ]
+      }
+      products: {
+        Row: {
+          category: string
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          price_usd: number
+          sku: string
+          specifications: Json | null
+          stock_quantity: number
+        }
+        Insert: {
+          category: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          price_usd: number
+          sku: string
+          specifications?: Json | null
+          stock_quantity?: number
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          price_usd?: number
+          sku?: string
+          specifications?: Json | null
+          stock_quantity?: number
+        }
+        Relationships: []
       }
     }
     Views: {
