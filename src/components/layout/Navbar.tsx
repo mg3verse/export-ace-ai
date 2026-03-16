@@ -47,7 +47,8 @@ export function Navbar() {
           ))}
         </div>
 
-        <div className="hidden md:flex">
+        <div className="hidden items-center gap-2 md:flex">
+          <AlertBell />
           <Button asChild size="sm" className="gradient-bg border-0 text-primary-foreground">
             <Link to="/demo">Get Started</Link>
           </Button>
