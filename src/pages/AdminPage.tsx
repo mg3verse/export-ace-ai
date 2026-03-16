@@ -123,6 +123,9 @@ export default function AdminPage() {
           <ScrollBar orientation="horizontal" />
         </ScrollArea>
 
+        {/* Conversations */}
+        <TabsContent value="conversations"><ConversationsPanel /></TabsContent>
+
         {/* Tab 1: Products */}
         <TabsContent value="products">
           <Card>
