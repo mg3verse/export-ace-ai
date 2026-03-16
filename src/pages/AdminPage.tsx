@@ -202,6 +202,9 @@ export default function AdminPage() {
         {/* Tab 4: Agents */}
         <TabsContent value="agents"><AgentSettingsPanel /></TabsContent>
 
+        {/* Purchases & Sales */}
+        <TabsContent value="transactions"><TransactionsPanel /></TabsContent>
+
         {/* Tab 5: Integrations */}
         <TabsContent value="integrations"><IntegrationsPanel /></TabsContent>
 
