@@ -18,6 +18,7 @@ import { PricingRulesEditor } from '@/components/admin/PricingRulesEditor';
 import { AgentSettingsPanel } from '@/components/admin/AgentSettingsPanel';
 import { IntegrationsPanel } from '@/components/admin/IntegrationsPanel';
 import { TeamPanel } from '@/components/admin/TeamPanel';
+import { ConversationsPanel } from '@/components/admin/ConversationsPanel';
 import type { Tables } from '@/integrations/supabase/types';
 
 type DbProduct = Tables<'products'>;
