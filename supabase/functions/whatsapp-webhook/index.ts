@@ -122,14 +122,45 @@ async function sendList(to: string, body: string, buttonText: string, sections: 
 // ── Tool functions ───────────────────────────────────────
 async function searchProductTool(query: string): Promise<string> {
   const sb = getSupabase();
+  // Split query into words for broader matching
+  const words = query.toLowerCase().split(/\s+/).filter(w => w.length > 2);
+  const searchTerms = [query, ...words];
+  
+  // Build OR conditions for each word
+  const orConditions = searchTerms
+    .map(term => `sku.ilike.%${term}%,name.ilike.%${term}%,category.ilike.%${term}%,description.ilike.%${term}%`)
+    .join(',');
+  
+  const { data, error } = await sb
+    .from("products")
+    .select("sku, name, price_usd, stock_quantity, category, description")
+    .or(orConditions)
+    .limit(8);
+  if (error) return JSON.stringify({ error: error.message });
+  if (!data || data.length === 0) {
+    // If no results, return all products as suggestions
+    const { data: all } = await sb.from("products").select("sku, name, price_usd, category").order("name").limit(15);
+    return JSON.stringify({ error: `No exact match for "${query}". Here are available products:`, suggestions: all });
+  }
+  return JSON.stringify(data);
+}
+
+async function listCatalogTool(): Promise<string> {
+  const sb = getSupabase();
   const { data, error } = await sb
     .from("products")
     .select("sku, name, price_usd, stock_quantity, category")
-    .or(`sku.ilike.%${query}%,name.ilike.%${query}%,category.ilike.%${query}%`)
-    .limit(5);
+    .order("category")
+    .limit(50);
   if (error) return JSON.stringify({ error: error.message });
-  if (!data || data.length === 0) return JSON.stringify({ error: "No products found" });
-  return JSON.stringify(data);
+  
+  // Group by category for clean display
+  const grouped: Record<string, any[]> = {};
+  for (const p of (data || [])) {
+    if (!grouped[p.category]) grouped[p.category] = [];
+    grouped[p.category].push({ name: p.name, sku: p.sku, price: `$${p.price_usd}`, stock: p.stock_quantity });
+  }
+  return JSON.stringify(grouped);
 }
 
 function calculatePriceTool(basePrice: number, quantity: number, currency: string): string {
