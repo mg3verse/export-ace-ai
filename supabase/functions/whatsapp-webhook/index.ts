@@ -474,6 +474,7 @@ function intentToAgent(intent: string): string {
 async function executeTool(name: string, args: any, conversationId?: string): Promise<string> {
   switch (name) {
     case "search_product": return await searchProductTool(args.query);
+    case "list_catalog": return await listCatalogTool();
     case "calculate_price": return calculatePriceTool(args.base_price, args.quantity, args.currency || "USD");
     case "create_order": return await createOrderTool({ ...args, conversation_id: conversationId });
     case "create_lead": return await createLeadTool({ ...args, conversation_id: conversationId });
