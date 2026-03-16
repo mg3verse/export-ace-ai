@@ -1,4 +1,4 @@
-export type AgentRole = 'pricing' | 'faq' | 'order' | 'qualifier' | 'orchestrator';
+export type AgentRole = 'pricing' | 'faq' | 'order' | 'qualifier' | 'orchestrator' | 'greeting';
 
 export interface Product {
   id: string;
