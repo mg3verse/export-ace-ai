@@ -14,7 +14,136 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      leads: {
+        Row: {
+          company_name: string
+          contact_name: string
+          country: string
+          created_at: string
+          email: string | null
+          id: string
+          is_qualified: boolean
+          last_contact_at: string | null
+          license_number: string | null
+          phone: string | null
+          tier: string
+        }
+        Insert: {
+          company_name: string
+          contact_name: string
+          country: string
+          created_at?: string
+          email?: string | null
+          id?: string
+          is_qualified?: boolean
+          last_contact_at?: string | null
+          license_number?: string | null
+          phone?: string | null
+          tier?: string
+        }
+        Update: {
+          company_name?: string
+          contact_name?: string
+          country?: string
+          created_at?: string
+          email?: string | null
+          id?: string
+          is_qualified?: boolean
+          last_contact_at?: string | null
+          license_number?: string | null
+          phone?: string | null
+          tier?: string
+        }
+        Relationships: []
+      }
+      order_items: {
+        Row: {
+          discount: number
+          id: string
+          line_total: number
+          order_id: string
+          product_id: string
+          product_name: string
+          quantity: number
+          sku: string
+          unit_price: number
+        }
+        Insert: {
+          discount?: number
+          id?: string
+          line_total: number
+          order_id: string
+          product_id: string
+          product_name: string
+          quantity: number
+          sku: string
+          unit_price: number
+        }
+        Update: {
+          discount?: number
+          id?: string
+          line_total?: number
+          order_id?: string
+          product_id?: string
+          product_name?: string
+          quantity?: number
+          sku?: string
+          unit_price?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_items_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      orders: {
+        Row: {
+          company_name: string
+          country: string
+          created_at: string
+          id: string
+          lead_id: string | null
+          shipping_address: string | null
+          status: string
+          total_value: number
+          updated_at: string
+        }
+        Insert: {
+          company_name: string
+          country: string
+          created_at?: string
+          id: string
+          lead_id?: string | null
+          shipping_address?: string | null
+          status?: string
+          total_value?: number
+          updated_at?: string
+        }
+        Update: {
+          company_name?: string
+          country?: string
+          created_at?: string
+          id?: string
+          lead_id?: string | null
+          shipping_address?: string | null
+          status?: string
+          total_value?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "orders_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
