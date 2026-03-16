@@ -50,13 +50,13 @@ export function AlertBell() {
   const [open, setOpen] = useState(false);
 
   const fetchAlerts = async () => {
-    const { data } = await supabase
+    const { data } = await (supabase as any)
       .from('admin_alerts')
       .select('*')
       .in('status', ['pending', 'acknowledged'])
       .order('created_at', { ascending: false })
       .limit(20);
-    if (data) setAlerts(data as unknown as AdminAlert[]);
+    if (data) setAlerts(data as AdminAlert[]);
   };
 
   useEffect(() => {
