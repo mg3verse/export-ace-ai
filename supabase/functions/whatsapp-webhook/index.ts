@@ -177,6 +177,34 @@ function calculatePriceTool(basePrice: number, quantity: number, currency: strin
   });
 }
 
+// ── Send admin alert ─────────────────────────────────────
+async function triggerAdminAlert(alertType: string, severity: string, title: string, description: string, conversationId?: string, orderId?: string, metadata?: Record<string, unknown>) {
+  try {
+    const sb = getSupabase();
+    await sb.from("admin_alerts").insert({
+      alert_type: alertType,
+      severity,
+      title,
+      description,
+      conversation_id: conversationId ?? null,
+      order_id: orderId ?? null,
+      metadata: metadata ?? {},
+      status: "pending",
+    });
+
+    // Also send WhatsApp/email notification via edge function
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    await fetch(`${supabaseUrl}/functions/v1/send-admin-alert`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${serviceKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ alert_type: alertType, severity, title, description, conversation_id: conversationId, order_id: orderId, metadata }),
+    }).catch(e => console.warn("Alert notification failed:", e));
+  } catch (e) {
+    console.error("Failed to create admin alert:", e);
+  }
+}
+
 async function createOrderTool(args: {
   customer_name: string;
   products: { sku: string; name: string; quantity: number; unit_price: number; line_total: number }[];
@@ -185,15 +213,43 @@ async function createOrderTool(args: {
   conversation_id?: string;
 }): Promise<string> {
   const sb = getSupabase();
+
+  // Check if order needs approval (threshold from app_settings)
+  const { data: thresholdSetting } = await sb.from("app_settings").select("value").eq("key", "order_approval_threshold").single();
+  const threshold = thresholdSetting ? Number(thresholdSetting.value) : 5000;
+  const needsApproval = args.total_amount >= threshold;
+
   const { data, error } = await sb.from("orders").insert({
     customer_name: args.customer_name,
     products: args.products,
     total_amount: args.total_amount,
     delivery_address: args.delivery_address ?? null,
     conversation_id: args.conversation_id ?? null,
-    status: "pending",
+    status: needsApproval ? "pending_approval" : "pending",
   }).select("id").single();
   if (error) return JSON.stringify({ error: error.message });
+
+  // Trigger alert for high-value orders
+  if (needsApproval) {
+    await triggerAdminAlert(
+      "high_value_order", "critical",
+      `⚠️ High-Value Order: $${args.total_amount.toLocaleString()}`,
+      `${args.customer_name} placed an order for $${args.total_amount.toLocaleString()} — requires admin approval.`,
+      args.conversation_id, data.id,
+      { customer: args.customer_name, total: args.total_amount, products: args.products }
+    );
+    return JSON.stringify({ success: true, order_id: data.id, status: "pending_approval", message: "Order submitted for admin approval due to high value." });
+  }
+
+  // Alert for all new orders (lower severity)
+  await triggerAdminAlert(
+    "new_order", "low",
+    `New Order: $${args.total_amount.toLocaleString()}`,
+    `${args.customer_name} placed an order.`,
+    args.conversation_id, data.id,
+    { customer: args.customer_name, total: args.total_amount }
+  );
+
   return JSON.stringify({ success: true, order_id: data.id });
 }
 
