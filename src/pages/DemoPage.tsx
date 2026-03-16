@@ -1,17 +1,28 @@
 import { useState, useRef, useEffect } from 'react';
-import { Send, Bot, Loader2 } from 'lucide-react';
+import { Send, Bot, Loader2, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { MessageBubble } from '@/components/chat/MessageBubble';
 import { useChatStore } from '@/stores/chatStore';
-import { streamChat } from '@/services/ai/streamChat';
+import { streamOrchestrated, buildContextWindow } from '@/services/ai/orchestrator';
 import { toast } from 'sonner';
+import type { AgentRole } from '@/types/domain';
+
+const AGENT_LABELS: Record<string, string> = {
+  pricing: '💰 Pricing Agent',
+  faq: '📋 FAQ Agent',
+  order: '📦 Order Agent',
+  qualifier: '🎯 Qualifier Agent',
+  orchestrator: '🤖 Aria',
+  greeting: '👋 Aria',
+};
 
 export default function DemoPage() {
-  const { conversations, activeConversationId, addMessage } = useChatStore();
+  const { conversations, activeConversationId, addMessage, updateContext, getContext } = useChatStore();
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [streamingContent, setStreamingContent] = useState('');
+  const [activeAgent, setActiveAgent] = useState<string>('orchestrator');
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const conversation = conversations.find((c) => c.id === activeConversationId);
@@ -27,7 +38,6 @@ export default function DemoPage() {
     const userContent = input.trim();
     setInput('');
 
-    // Add user message
     addMessage(activeConversationId, {
       id: crypto.randomUUID(),
       conversationId: activeConversationId,
@@ -39,49 +49,50 @@ export default function DemoPage() {
     setIsLoading(true);
     setStreamingContent('');
 
-    // Build message history for context
-    const history = [
-      ...messages.map((m) => ({
-        role: m.role as 'user' | 'assistant',
-        content: m.content,
-      })),
-      { role: 'user' as const, content: userContent },
-    ].filter((m) => m.role !== 'system' as string);
+    const context = getContext(activeConversationId);
+    const history = buildContextWindow([...messages, { id: '', conversationId: '', role: 'user', content: userContent, timestamp: '' }]);
 
     let accumulated = '';
+    let resolvedAgent: AgentRole = 'orchestrator';
 
-    try {
-      await streamChat({
-        messages: history,
-        onDelta: (chunk) => {
-          accumulated += chunk;
-          setStreamingContent(accumulated);
-        },
-        onDone: () => {
-          // Add final assistant message to store
-          addMessage(activeConversationId, {
-            id: crypto.randomUUID(),
-            conversationId: activeConversationId,
-            role: 'assistant',
-            content: accumulated,
-            agentRole: 'orchestrator',
-            timestamp: new Date().toISOString(),
-          });
-          setStreamingContent('');
-          setIsLoading(false);
-        },
-        onError: (error) => {
-          toast.error(error);
-          setStreamingContent('');
-          setIsLoading(false);
-        },
-      });
-    } catch (e) {
-      toast.error('Failed to connect to AI service');
-      setStreamingContent('');
-      setIsLoading(false);
-    }
+    await streamOrchestrated({
+      messages: history,
+      context,
+      onDelta: (chunk) => {
+        accumulated += chunk;
+        setStreamingContent(accumulated);
+      },
+      onMeta: (meta) => {
+        resolvedAgent = meta.agent as AgentRole;
+        setActiveAgent(meta.agent);
+        updateContext(activeConversationId, {
+          currentAgent: meta.agent as AgentRole,
+          lastIntent: meta.intent,
+          entities: { ...context.entities, ...meta.entities },
+          turnCount: context.turnCount + 1,
+        });
+      },
+      onDone: () => {
+        addMessage(activeConversationId, {
+          id: crypto.randomUUID(),
+          conversationId: activeConversationId,
+          role: 'assistant',
+          content: accumulated,
+          agentRole: resolvedAgent,
+          timestamp: new Date().toISOString(),
+        });
+        setStreamingContent('');
+        setIsLoading(false);
+      },
+      onError: (error) => {
+        toast.error(error);
+        setStreamingContent('');
+        setIsLoading(false);
+      },
+    });
   };
+
+  const ctx = activeConversationId ? getContext(activeConversationId) : null;
 
   return (
     <div className="mx-auto flex h-[calc(100vh-4rem)] max-w-3xl flex-col px-4 py-4">
@@ -96,9 +107,18 @@ export default function DemoPage() {
             {conversation ? `${conversation.leadName} • AI-powered` : 'No conversation'}
           </p>
         </div>
-        <span className="ml-auto flex items-center gap-1.5 text-xs text-emerald-500">
-          <span className="h-2 w-2 rounded-full bg-emerald-500" /> Online
-        </span>
+        {/* Active agent indicator */}
+        <div className="ml-auto flex items-center gap-2">
+          {ctx?.lastIntent && (
+            <span className="flex items-center gap-1 rounded-full bg-accent/50 px-2.5 py-1 text-[10px] font-medium text-accent-foreground">
+              <Zap className="h-3 w-3" />
+              {AGENT_LABELS[activeAgent] || activeAgent}
+            </span>
+          )}
+          <span className="flex items-center gap-1.5 text-xs text-emerald-500">
+            <span className="h-2 w-2 rounded-full bg-emerald-500" /> Online
+          </span>
+        </div>
       </div>
 
       {/* Messages */}
@@ -107,7 +127,6 @@ export default function DemoPage() {
           {messages.map((msg) => (
             <MessageBubble key={msg.id} message={msg} />
           ))}
-          {/* Streaming message */}
           {streamingContent && (
             <MessageBubble
               message={{
@@ -115,12 +134,11 @@ export default function DemoPage() {
                 conversationId: activeConversationId || '',
                 role: 'assistant',
                 content: streamingContent,
-                agentRole: 'orchestrator',
+                agentRole: activeAgent as AgentRole,
                 timestamp: new Date().toISOString(),
               }}
             />
           )}
-          {/* Loading indicator */}
           {isLoading && !streamingContent && (
             <div className="flex gap-2">
               <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/10">
@@ -128,7 +146,7 @@ export default function DemoPage() {
               </div>
               <div className="flex items-center gap-2 rounded-2xl rounded-bl-md bg-muted px-4 py-2.5 text-sm text-muted-foreground">
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                Aria is thinking…
+                Routing to {AGENT_LABELS[activeAgent] || 'Aria'}…
               </div>
             </div>
           )}
