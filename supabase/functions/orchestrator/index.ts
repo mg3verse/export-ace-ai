@@ -30,14 +30,35 @@ function getSupabase() {
 // ── Tool implementations ─────────────────────────────────
 async function searchProductTool(query: string): Promise<string> {
   const sb = getSupabase();
+  const words = query.toLowerCase().split(/\s+/).filter(w => w.length > 2);
+  const searchTerms = [query, ...words];
+  const orConditions = searchTerms
+    .map(term => `sku.ilike.%${term}%,name.ilike.%${term}%,category.ilike.%${term}%,description.ilike.%${term}%`)
+    .join(',');
+
   const { data, error } = await sb
     .from("products")
-    .select("sku, name, price_usd, stock_quantity, category")
-    .or(`sku.ilike.%${query}%,name.ilike.%${query}%`)
-    .limit(5);
+    .select("sku, name, price_usd, stock_quantity, category, description")
+    .or(orConditions)
+    .limit(8);
   if (error) return JSON.stringify({ error: error.message });
-  if (!data || data.length === 0) return JSON.stringify({ error: "No products found" });
+  if (!data || data.length === 0) {
+    const { data: all } = await sb.from("products").select("sku, name, price_usd, category").order("name").limit(15);
+    return JSON.stringify({ error: `No exact match for "${query}". Here are available products:`, suggestions: all });
+  }
   return JSON.stringify(data);
+}
+
+async function listCatalogTool(): Promise<string> {
+  const sb = getSupabase();
+  const { data, error } = await sb.from("products").select("sku, name, price_usd, stock_quantity, category").order("category").limit(50);
+  if (error) return JSON.stringify({ error: error.message });
+  const grouped: Record<string, any[]> = {};
+  for (const p of (data || [])) {
+    if (!grouped[p.category]) grouped[p.category] = [];
+    grouped[p.category].push({ name: p.name, sku: p.sku, price: `$${p.price_usd}`, stock: p.stock_quantity });
+  }
+  return JSON.stringify(grouped);
 }
 
 function calculatePriceTool(basePrice: number, quantity: number, currency: string): string {
@@ -161,11 +182,20 @@ const ALL_TOOLS = [
       },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "list_catalog",
+      description: "List all available products grouped by category. Use when user asks what's available or wants to browse.",
+      parameters: { type: "object", properties: {}, required: [] },
+    },
+  },
 ];
 
 async function executeTool(name: string, args: any, conversationId?: string): Promise<string> {
   switch (name) {
     case "search_product": return await searchProductTool(args.query);
+    case "list_catalog": return await listCatalogTool();
     case "calculate_price": return calculatePriceTool(args.base_price, args.quantity, args.currency || "USD");
     case "create_order": return await createOrderTool(args, conversationId);
     case "create_lead": return await createLeadTool(args, conversationId);
