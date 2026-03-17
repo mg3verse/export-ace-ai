@@ -209,23 +209,43 @@ export default function DashboardPage() {
                     <TableRow>
                       <TableHead className="text-xs">Order ID</TableHead>
                       <TableHead className="text-xs">Customer</TableHead>
+                      <TableHead className="text-xs">Products</TableHead>
                       <TableHead className="text-xs text-right">Value</TableHead>
                       <TableHead className="text-xs">Status</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {data.recentOrders.map((order) => (
-                      <TableRow key={order.id}>
-                        <TableCell className="font-mono text-xs">{order.id.slice(0, 8)}</TableCell>
-                        <TableCell className="text-xs font-medium">{order.customer_name}</TableCell>
-                        <TableCell className="text-xs text-right font-semibold">{formatCurrency(Number(order.total_amount))}</TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className={cn('capitalize text-[10px]', STATUS_STYLES[order.status] ?? '')}>
-                            {order.status}
-                          </Badge>
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                    {data.recentOrders.map((order) => {
+                      const products = (order.products || []) as { name?: string; sku?: string; quantity?: number; unit_price?: number; line_total?: number }[];
+                      return (
+                        <TableRow key={order.id}>
+                          <TableCell className="font-mono text-xs">{order.id.slice(0, 8)}</TableCell>
+                          <TableCell className="text-xs font-medium">{order.customer_name}</TableCell>
+                          <TableCell className="text-xs max-w-[200px]">
+                            {products.length === 0 ? (
+                              <span className="text-muted-foreground">—</span>
+                            ) : (
+                              <div className="space-y-0.5">
+                                {products.map((p, i) => (
+                                  <div key={i} className="flex items-center gap-1">
+                                    <span className="truncate">{p.name || p.sku}</span>
+                                    <Badge variant="outline" className="text-[9px] px-1 py-0 shrink-0">
+                                      ×{p.quantity}
+                                    </Badge>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-xs text-right font-semibold">{formatCurrency(Number(order.total_amount))}</TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className={cn('capitalize text-[10px]', STATUS_STYLES[order.status] ?? '')}>
+                              {order.status}
+                            </Badge>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               )}
