@@ -570,7 +570,7 @@ async function classifyIntent(
 
 function intentToAgent(intent: string): string {
   const map: Record<string, string> = {
-    PRICING: "pricing", FAQ: "faq", ORDER: "order",
+    PRICING: "pricing", FAQ: "faq", ORDER: "order", INVOICE: "invoice",
     QUALIFICATION: "qualifier", ESCALATE: "escalate", GREETING: "greeting",
   };
   return map[intent] || "faq";
