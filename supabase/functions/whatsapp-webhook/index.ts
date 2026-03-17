@@ -577,6 +577,24 @@ function intentToAgent(intent: string): string {
 }
 
 // ── Execute tool calls ───────────────────────────────────
+async function generateInvoiceTool(orderId: string, conversationId?: string): Promise<string> {
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  const resp = await fetch(`${supabaseUrl}/functions/v1/generate-invoice`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${serviceKey}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ order_id: orderId, conversation_id: conversationId }),
+  });
+  if (!resp.ok) {
+    const err = await resp.text();
+    return JSON.stringify({ error: `Invoice generation failed: ${err}` });
+  }
+  const result = await resp.json();
+  // Return the formatted invoice text directly for WhatsApp
+  if (result.invoice_text) return result.invoice_text;
+  return JSON.stringify(result);
+}
+
 async function executeTool(name: string, args: any, conversationId?: string): Promise<string> {
   switch (name) {
     case "search_product": return await searchProductTool(args.query);
@@ -584,6 +602,7 @@ async function executeTool(name: string, args: any, conversationId?: string): Pr
     case "calculate_price": return calculatePriceTool(args.base_price, args.quantity, args.currency || "USD");
     case "create_order": return await createOrderTool({ ...args, conversation_id: conversationId });
     case "create_lead": return await createLeadTool({ ...args, conversation_id: conversationId });
+    case "generate_invoice": return await generateInvoiceTool(args.order_id, conversationId);
     default: return JSON.stringify({ error: "Unknown tool" });
   }
 }
