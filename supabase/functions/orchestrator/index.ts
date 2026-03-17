@@ -396,7 +396,7 @@ serve(async (req) => {
 
     // Step 3: For agents with tools, use tool calling loop then stream final; for others stream directly
     const systemPrompt = AGENT_PROMPTS[agent] || AGENT_PROMPTS.faq;
-    const useTools = ["pricing", "order", "qualifier"].includes(agent);
+    const useTools = ["pricing", "order", "qualifier", "invoice"].includes(agent);
 
     if (useTools) {
       let agentMessages: any[] = [{ role: "system", content: systemPrompt }, ...messages];
