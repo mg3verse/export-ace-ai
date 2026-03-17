@@ -513,6 +513,7 @@ function getMenuLabel(id: string): string {
   const map: Record<string, string> = {
     menu_pricing: "Get a Quote",
     menu_order: "Place an Order",
+    menu_invoice: "Get Invoice",
     menu_faq: "Shipping & Info",
     menu_qualify: "Become a Buyer",
   };
