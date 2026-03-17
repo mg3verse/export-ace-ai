@@ -831,7 +831,7 @@ serve(async (req) => {
         // Send welcome + interactive menu
         const welcomeText = "Hi there! I'm *Aria*, your AI sales assistant at *MedSource International* 🏥\n\nYour trusted partner for pharmaceutical exports worldwide. 🌍";
         await sendText(from, welcomeText);
-        await sendMainMenu(from);
+        await sendMainMenuV2(from);
 
         const updatedMessages = [
           ...existingMessages,
