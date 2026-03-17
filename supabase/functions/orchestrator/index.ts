@@ -298,7 +298,7 @@ async function classifyIntent(
           parameters: {
             type: "object",
             properties: {
-              intent: { type: "string", enum: ["PRICING", "FAQ", "ORDER", "QUALIFICATION", "ESCALATE", "GREETING"] },
+              intent: { type: "string", enum: ["PRICING", "FAQ", "ORDER", "INVOICE", "QUALIFICATION", "ESCALATE", "GREETING"] },
               confidence: { type: "number", description: "0-1 confidence score" },
               entities: {
                 type: "object",
