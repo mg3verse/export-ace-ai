@@ -358,6 +358,20 @@ const ALL_TOOLS = [
       parameters: { type: "object", properties: {}, required: [] },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "generate_invoice",
+      description: "Generate an invoice for an existing order. Use when customer asks for invoice, bill, or receipt.",
+      parameters: {
+        type: "object",
+        properties: {
+          order_id: { type: "string", description: "The order ID to generate invoice for" },
+        },
+        required: ["order_id"],
+      },
+    },
+  },
 ];
 // ── Agent prompts (concise, WhatsApp-optimized) ──────────
 const AGENT_PROMPTS: Record<string, string> = {
