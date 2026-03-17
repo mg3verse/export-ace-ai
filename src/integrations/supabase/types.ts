@@ -14,6 +14,78 @@ export type Database = {
   }
   public: {
     Tables: {
+      admin_alerts: {
+        Row: {
+          alert_type: string
+          assigned_to: string | null
+          conversation_id: string | null
+          created_at: string
+          description: string | null
+          id: string
+          metadata: Json | null
+          notified_email: boolean | null
+          notified_whatsapp: boolean | null
+          order_id: string | null
+          resolution_note: string | null
+          resolved_at: string | null
+          severity: string
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          alert_type: string
+          assigned_to?: string | null
+          conversation_id?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          metadata?: Json | null
+          notified_email?: boolean | null
+          notified_whatsapp?: boolean | null
+          order_id?: string | null
+          resolution_note?: string | null
+          resolved_at?: string | null
+          severity?: string
+          status?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          alert_type?: string
+          assigned_to?: string | null
+          conversation_id?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          metadata?: Json | null
+          notified_email?: boolean | null
+          notified_whatsapp?: boolean | null
+          order_id?: string | null
+          resolution_note?: string | null
+          resolved_at?: string | null
+          severity?: string
+          status?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "admin_alerts_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "admin_alerts_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       analytics_events: {
         Row: {
           event_data: Json | null
