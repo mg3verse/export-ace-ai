@@ -190,6 +190,20 @@ const ALL_TOOLS = [
       parameters: { type: "object", properties: {}, required: [] },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "generate_invoice",
+      description: "Generate an invoice for an existing order. Use when customer asks for invoice, bill, or receipt for their order.",
+      parameters: {
+        type: "object",
+        properties: {
+          order_id: { type: "string", description: "The order ID to generate invoice for" },
+        },
+        required: ["order_id"],
+      },
+    },
+  },
 ];
 
 async function executeTool(name: string, args: any, conversationId?: string): Promise<string> {
