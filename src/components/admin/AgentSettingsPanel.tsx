@@ -119,6 +119,25 @@ export function AgentSettingsPanel() {
         </CardContent>
       </Card>
 
+      <Card>
+        <CardHeader>
+          <CardTitle>Approval & Stock Thresholds</CardTitle>
+          <CardDescription>Configure auto-approval and stock alert thresholds</CardDescription>
+        </CardHeader>
+        <CardContent className="grid grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label>Auto-Approve Orders Under ($)</Label>
+            <Input type="number" min={0} value={config.autoApproveThreshold} onChange={(e) => setConfig((c) => ({ ...c, autoApproveThreshold: parseInt(e.target.value) || 0 }))} />
+            <p className="text-xs text-muted-foreground">Orders below this amount are auto-approved</p>
+          </div>
+          <div className="space-y-2">
+            <Label>Low Stock Alert Threshold</Label>
+            <Input type="number" min={0} value={config.lowStockThreshold} onChange={(e) => setConfig((c) => ({ ...c, lowStockThreshold: parseInt(e.target.value) || 0 }))} />
+            <p className="text-xs text-muted-foreground">Alert when stock drops below this quantity</p>
+          </div>
+        </CardContent>
+      </Card>
+
       <Button onClick={save} disabled={saving} className="w-full sm:w-auto">
         <Save className="mr-2 h-4 w-4" />{saving ? 'Saving...' : 'Save Agent Settings'}
       </Button>
