@@ -850,7 +850,7 @@ serve(async (req) => {
       aiHistory.push({ role: "user", content: content.text });
 
       // If user is already in a flow, continue with current agent
-      if (["pricing", "order", "qualifier", "faq"].includes(currentAgent) && !isGreeting) {
+      if (["pricing", "order", "qualifier", "faq", "invoice"].includes(currentAgent) && !isGreeting) {
         agent = currentAgent;
       } else {
         // Classify intent for free-text
