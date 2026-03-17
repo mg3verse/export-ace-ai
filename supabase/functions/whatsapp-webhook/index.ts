@@ -773,7 +773,7 @@ serve(async (req) => {
       const content = extractMessageContent(message);
       if (!content) {
         await sendText(from, "I can only process text messages at the moment. Please select an option from the menu! 😊");
-        await sendMainMenu(from);
+        await sendMainMenuV2(from);
         return new Response(JSON.stringify({ status: "ok" }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
 
