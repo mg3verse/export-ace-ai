@@ -11,3 +11,9 @@ verify_jwt = false
 
 [functions.whatsapp-webhook]
 verify_jwt = false
+
+[functions.handle-approval]
+verify_jwt = false
+
+[functions.check-low-stock]
+verify_jwt = false

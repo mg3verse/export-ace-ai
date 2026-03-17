@@ -24,6 +24,8 @@ interface AgentConfig {
   maxTokens: number;
   agents: { pricing: boolean; faq: boolean; order: boolean; qualifier: boolean };
   leadThresholds: { hot: number; warm: number; cold: number };
+  autoApproveThreshold: number;
+  lowStockThreshold: number;
 }
 
 const DEFAULTS: AgentConfig = {
@@ -32,6 +34,8 @@ const DEFAULTS: AgentConfig = {
   maxTokens: 1000,
   agents: { pricing: true, faq: true, order: true, qualifier: true },
   leadThresholds: { hot: 80, warm: 60, cold: 40 },
+  autoApproveThreshold: 500,
+  lowStockThreshold: 10,
 };
 
 export function AgentSettingsPanel() {
@@ -112,6 +116,25 @@ export function AgentSettingsPanel() {
               <p className="text-xs text-muted-foreground">≥ {config.leadThresholds[tier]} points</p>
             </div>
           ))}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Approval & Stock Thresholds</CardTitle>
+          <CardDescription>Configure auto-approval and stock alert thresholds</CardDescription>
+        </CardHeader>
+        <CardContent className="grid grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label>Auto-Approve Orders Under ($)</Label>
+            <Input type="number" min={0} value={config.autoApproveThreshold} onChange={(e) => setConfig((c) => ({ ...c, autoApproveThreshold: parseInt(e.target.value) || 0 }))} />
+            <p className="text-xs text-muted-foreground">Orders below this amount are auto-approved</p>
+          </div>
+          <div className="space-y-2">
+            <Label>Low Stock Alert Threshold</Label>
+            <Input type="number" min={0} value={config.lowStockThreshold} onChange={(e) => setConfig((c) => ({ ...c, lowStockThreshold: parseInt(e.target.value) || 0 }))} />
+            <p className="text-xs text-muted-foreground">Alert when stock drops below this quantity</p>
+          </div>
         </CardContent>
       </Card>
 
