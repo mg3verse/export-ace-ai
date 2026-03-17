@@ -521,10 +521,11 @@ function getMenuLabel(id: string): string {
 
 // ── Intent classification ────────────────────────────────
 const CLASSIFIER_PROMPT = `You are an intent classifier for MedSource International, a pharmaceutical B2B export company.
-Classify the user's intent into one of: PRICING, FAQ, ORDER, QUALIFICATION, ESCALATE, GREETING.
+Classify the user's intent into one of: PRICING, FAQ, ORDER, INVOICE, QUALIFICATION, ESCALATE, GREETING.
 - GREETING: hi, hello, hey, start, menu, back
 - PRICING: price, quote, cost, how much, rate, discount, bulk
 - ORDER: order, buy, purchase, place order, checkout
+- INVOICE: invoice, bill, receipt, invoice generation, payment document
 - FAQ: shipping, delivery, license, payment, terms, info
 - QUALIFICATION: register, become buyer, new customer, qualify
 - ESCALATE: speak to human, agent, complaint, urgent issue
