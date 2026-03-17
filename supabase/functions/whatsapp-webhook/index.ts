@@ -358,6 +358,20 @@ const ALL_TOOLS = [
       parameters: { type: "object", properties: {}, required: [] },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "generate_invoice",
+      description: "Generate an invoice for an existing order. Use when customer asks for invoice, bill, or receipt.",
+      parameters: {
+        type: "object",
+        properties: {
+          order_id: { type: "string", description: "The order ID to generate invoice for" },
+        },
+        required: ["order_id"],
+      },
+    },
+  },
 ];
 // ── Agent prompts (concise, WhatsApp-optimized) ──────────
 const AGENT_PROMPTS: Record<string, string> = {
@@ -407,6 +421,16 @@ REQUIRED INFO (collect step by step):
 3. Delivery country/address
 4. Contact name + phone/email`,
 
+  invoice: `You are Aria, invoice specialist at MedSource International.
+
+RULES:
+- Use generate_invoice tool to create invoices for customer orders
+- If customer mentions an order ID (like #e75d2c43), extract it and use it
+- If no order ID, check conversation context for recent order references
+- Present the formatted invoice text directly from the tool result
+- Keep responses SHORT. This is WhatsApp, not email
+- Use bold *text* for key details`,
+
   qualifier: `You are Aria, business development at MedSource International.
 
 RULES:
@@ -450,11 +474,33 @@ async function sendMainMenu(to: string): Promise<boolean> {
   );
 }
 
+// Send the main menu with 5 clickable options
+async function sendMainMenuV2(to: string): Promise<boolean> {
+  return await sendList(
+    to,
+    "How can I help you today? Select an option below 👇",
+    "View Options",
+    [{
+      title: "Our Services",
+      rows: [
+        { id: "menu_pricing", title: "💰 Get a Quote", description: "Product pricing & bulk discounts" },
+        { id: "menu_order", title: "📦 Place an Order", description: "Start a new purchase order" },
+        { id: "menu_invoice", title: "🧾 Get Invoice", description: "Generate invoice for your order" },
+        { id: "menu_faq", title: "ℹ️ Shipping & Info", description: "Licensing, payment & delivery" },
+        { id: "menu_qualify", title: "🤝 Become a Buyer", description: "Register as a qualified buyer" },
+      ],
+    }],
+    "MedSource International",
+    "Pharmaceutical exports worldwide 🌍"
+  );
+}
+
 // Map menu button IDs to agents
 function getAgentFromMenuId(id: string): string | null {
   const map: Record<string, string> = {
     menu_pricing: "pricing",
     menu_order: "order",
+    menu_invoice: "invoice",
     menu_faq: "faq",
     menu_qualify: "qualifier",
     menu_back: "greeting",
@@ -467,6 +513,7 @@ function getMenuLabel(id: string): string {
   const map: Record<string, string> = {
     menu_pricing: "Get a Quote",
     menu_order: "Place an Order",
+    menu_invoice: "Get Invoice",
     menu_faq: "Shipping & Info",
     menu_qualify: "Become a Buyer",
   };
@@ -475,10 +522,11 @@ function getMenuLabel(id: string): string {
 
 // ── Intent classification ────────────────────────────────
 const CLASSIFIER_PROMPT = `You are an intent classifier for MedSource International, a pharmaceutical B2B export company.
-Classify the user's intent into one of: PRICING, FAQ, ORDER, QUALIFICATION, ESCALATE, GREETING.
+Classify the user's intent into one of: PRICING, FAQ, ORDER, INVOICE, QUALIFICATION, ESCALATE, GREETING.
 - GREETING: hi, hello, hey, start, menu, back
 - PRICING: price, quote, cost, how much, rate, discount, bulk
 - ORDER: order, buy, purchase, place order, checkout
+- INVOICE: invoice, bill, receipt, invoice generation, payment document
 - FAQ: shipping, delivery, license, payment, terms, info
 - QUALIFICATION: register, become buyer, new customer, qualify
 - ESCALATE: speak to human, agent, complaint, urgent issue
@@ -502,7 +550,7 @@ async function classifyIntent(
           parameters: {
             type: "object",
             properties: {
-              intent: { type: "string", enum: ["PRICING", "FAQ", "ORDER", "QUALIFICATION", "ESCALATE", "GREETING"] },
+              intent: { type: "string", enum: ["PRICING", "FAQ", "ORDER", "INVOICE", "QUALIFICATION", "ESCALATE", "GREETING"] },
               confidence: { type: "number" },
             },
             required: ["intent", "confidence"],
@@ -523,13 +571,31 @@ async function classifyIntent(
 
 function intentToAgent(intent: string): string {
   const map: Record<string, string> = {
-    PRICING: "pricing", FAQ: "faq", ORDER: "order",
+    PRICING: "pricing", FAQ: "faq", ORDER: "order", INVOICE: "invoice",
     QUALIFICATION: "qualifier", ESCALATE: "escalate", GREETING: "greeting",
   };
   return map[intent] || "faq";
 }
 
 // ── Execute tool calls ───────────────────────────────────
+async function generateInvoiceTool(orderId: string, conversationId?: string): Promise<string> {
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  const resp = await fetch(`${supabaseUrl}/functions/v1/generate-invoice`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${serviceKey}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ order_id: orderId, conversation_id: conversationId }),
+  });
+  if (!resp.ok) {
+    const err = await resp.text();
+    return JSON.stringify({ error: `Invoice generation failed: ${err}` });
+  }
+  const result = await resp.json();
+  // Return the formatted invoice text directly for WhatsApp
+  if (result.invoice_text) return result.invoice_text;
+  return JSON.stringify(result);
+}
+
 async function executeTool(name: string, args: any, conversationId?: string): Promise<string> {
   switch (name) {
     case "search_product": return await searchProductTool(args.query);
@@ -537,6 +603,7 @@ async function executeTool(name: string, args: any, conversationId?: string): Pr
     case "calculate_price": return calculatePriceTool(args.base_price, args.quantity, args.currency || "USD");
     case "create_order": return await createOrderTool({ ...args, conversation_id: conversationId });
     case "create_lead": return await createLeadTool({ ...args, conversation_id: conversationId });
+    case "generate_invoice": return await generateInvoiceTool(args.order_id, conversationId);
     default: return JSON.stringify({ error: "Unknown tool" });
   }
 }
@@ -549,7 +616,7 @@ async function getAIResponse(
   conversationId?: string
 ): Promise<string> {
   const systemPrompt = AGENT_PROMPTS[agent] || AGENT_PROMPTS.faq;
-  const useTools = ["pricing", "order", "qualifier", "faq"].includes(agent);
+  const useTools = ["pricing", "order", "qualifier", "faq", "invoice"].includes(agent);
 
   let agentMessages: any[] = [{ role: "system", content: systemPrompt }, ...messages];
   let maxIterations = 5;
@@ -707,7 +774,7 @@ serve(async (req) => {
       const content = extractMessageContent(message);
       if (!content) {
         await sendText(from, "I can only process text messages at the moment. Please select an option from the menu! 😊");
-        await sendMainMenu(from);
+        await sendMainMenuV2(from);
         return new Response(JSON.stringify({ status: "ok" }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
 
@@ -726,7 +793,7 @@ serve(async (req) => {
         const menuAgent = getAgentFromMenuId(content.menuId);
         if (menuAgent === "greeting") {
           // Back to main menu
-          await sendMainMenu(from);
+          await sendMainMenuV2(from);
           await updateConversation(conversation.id, [...existingMessages, { role: "user", content: content.text, timestamp: new Date().toISOString() }], "greeting");
           return new Response(JSON.stringify({ status: "ok" }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
         }
@@ -736,6 +803,7 @@ serve(async (req) => {
           const openingMessages: Record<string, string> = {
             pricing: "You selected *Get a Quote* 💰\n\nWhich product are you interested in? You can share a product name or category.",
             order: "You selected *Place an Order* 📦\n\nLet's get started! Which product(s) would you like to order?",
+            invoice: "You selected *Get Invoice* 🧾\n\nPlease share your order ID (e.g. #e75d2c43) and I'll generate your invoice right away!",
             faq: "You selected *Shipping & Info* ℹ️\n\nWhat would you like to know? I can help with shipping times, licensing, or payment terms.",
             qualifier: "You selected *Become a Buyer* 🤝\n\nGreat! Let me help you get registered. What's your company name?",
           };
@@ -764,7 +832,7 @@ serve(async (req) => {
         // Send welcome + interactive menu
         const welcomeText = "Hi there! I'm *Aria*, your AI sales assistant at *MedSource International* 🏥\n\nYour trusted partner for pharmaceutical exports worldwide. 🌍";
         await sendText(from, welcomeText);
-        await sendMainMenu(from);
+        await sendMainMenuV2(from);
 
         const updatedMessages = [
           ...existingMessages,
@@ -782,7 +850,7 @@ serve(async (req) => {
       aiHistory.push({ role: "user", content: content.text });
 
       // If user is already in a flow, continue with current agent
-      if (["pricing", "order", "qualifier", "faq"].includes(currentAgent) && !isGreeting) {
+      if (["pricing", "order", "qualifier", "faq", "invoice"].includes(currentAgent) && !isGreeting) {
         agent = currentAgent;
       } else {
         // Classify intent for free-text

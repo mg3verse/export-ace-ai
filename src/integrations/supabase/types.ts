@@ -164,6 +164,84 @@ export type Database = {
         }
         Relationships: []
       }
+      invoices: {
+        Row: {
+          company_name: string | null
+          conversation_id: string | null
+          created_at: string
+          currency: string
+          customer_name: string
+          delivery_address: string | null
+          discount_total: number
+          due_date: string | null
+          id: string
+          invoice_number: string
+          issued_at: string
+          notes: string | null
+          order_id: string | null
+          products: Json
+          status: string
+          subtotal: number
+          tax_total: number
+          total_amount: number
+        }
+        Insert: {
+          company_name?: string | null
+          conversation_id?: string | null
+          created_at?: string
+          currency?: string
+          customer_name: string
+          delivery_address?: string | null
+          discount_total?: number
+          due_date?: string | null
+          id?: string
+          invoice_number: string
+          issued_at?: string
+          notes?: string | null
+          order_id?: string | null
+          products?: Json
+          status?: string
+          subtotal?: number
+          tax_total?: number
+          total_amount?: number
+        }
+        Update: {
+          company_name?: string | null
+          conversation_id?: string | null
+          created_at?: string
+          currency?: string
+          customer_name?: string
+          delivery_address?: string | null
+          discount_total?: number
+          due_date?: string | null
+          id?: string
+          invoice_number?: string
+          issued_at?: string
+          notes?: string | null
+          order_id?: string | null
+          products?: Json
+          status?: string
+          subtotal?: number
+          tax_total?: number
+          total_amount?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invoices_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       leads: {
         Row: {
           company_name: string

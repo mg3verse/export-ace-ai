@@ -190,7 +190,37 @@ const ALL_TOOLS = [
       parameters: { type: "object", properties: {}, required: [] },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "generate_invoice",
+      description: "Generate an invoice for an existing order. Use when customer asks for invoice, bill, or receipt for their order.",
+      parameters: {
+        type: "object",
+        properties: {
+          order_id: { type: "string", description: "The order ID to generate invoice for" },
+        },
+        required: ["order_id"],
+      },
+    },
+  },
 ];
+
+async function generateInvoiceTool(orderId: string, conversationId?: string): Promise<string> {
+  const sb = getSupabase();
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  const resp = await fetch(`${supabaseUrl}/functions/v1/generate-invoice`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${serviceKey}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ order_id: orderId, conversation_id: conversationId }),
+  });
+  if (!resp.ok) {
+    const err = await resp.text();
+    return JSON.stringify({ error: `Invoice generation failed: ${err}` });
+  }
+  return await resp.text();
+}
 
 async function executeTool(name: string, args: any, conversationId?: string): Promise<string> {
   switch (name) {
@@ -199,6 +229,7 @@ async function executeTool(name: string, args: any, conversationId?: string): Pr
     case "calculate_price": return calculatePriceTool(args.base_price, args.quantity, args.currency || "USD");
     case "create_order": return await createOrderTool(args, conversationId);
     case "create_lead": return await createLeadTool(args, conversationId);
+    case "generate_invoice": return await generateInvoiceTool(args.order_id, conversationId);
     default: return JSON.stringify({ error: "Unknown tool" });
   }
 }
@@ -211,6 +242,7 @@ INTENTS:
 - PRICING: product prices, quotes, bulk discounts, cost comparisons
 - FAQ: shipping, licensing, regulations, product info, company details
 - ORDER: place, modify, track, or cancel an order
+- INVOICE: invoice, bill, receipt, payment document, generate invoice
 - QUALIFICATION: new buyer, company details, license verification, volume inquiries
 - ESCALATE: complaints, legal issues, returns, anything needing human judgment
 - GREETING: hello, hi, general chat, small talk
@@ -239,11 +271,21 @@ Qualify: 1) Company type 2) Country 3) License status 4) Monthly volume 5) Curre
 When qualified, use create_lead tool to save. Score: Licensed distributor=80, Hospital chain=60, Single pharmacy=40, No license=10.
 Be warm, don't pressure, qualify naturally. Offer to connect with sales team for qualified leads.`,
 
+  invoice: `You are an invoice specialist at MedSource International.
+Use generate_invoice tool to create invoices for customer orders.
+RULES:
+- If the customer mentions an order ID, use it directly with generate_invoice
+- If no order ID mentioned, check the conversation context for recent order references
+- Present the invoice details clearly after generation
+- If no order is found, ask the customer for their order ID or details to look it up
+Keep responses concise and professional.`,
+
   greeting: `You are Aria, the friendly AI sales assistant for MedSource International, a pharmaceutical B2B export company.
 Greet the user warmly. Briefly introduce yourself and what you can help with:
 - Product pricing and quotes
 - Shipping and licensing info
 - Placing orders
+- Invoice generation
 - Getting qualified as a buyer
 Keep it short and inviting. Use a friendly emoji or two. Ask how you can help today.`,
 };
@@ -266,7 +308,7 @@ async function classifyIntent(
           parameters: {
             type: "object",
             properties: {
-              intent: { type: "string", enum: ["PRICING", "FAQ", "ORDER", "QUALIFICATION", "ESCALATE", "GREETING"] },
+              intent: { type: "string", enum: ["PRICING", "FAQ", "ORDER", "INVOICE", "QUALIFICATION", "ESCALATE", "GREETING"] },
               confidence: { type: "number", description: "0-1 confidence score" },
               entities: {
                 type: "object",
@@ -314,7 +356,7 @@ async function classifyIntent(
 
 function intentToAgent(intent: string): string {
   const map: Record<string, string> = {
-    PRICING: "pricing", FAQ: "faq", ORDER: "order",
+    PRICING: "pricing", FAQ: "faq", ORDER: "order", INVOICE: "invoice",
     QUALIFICATION: "qualifier", ESCALATE: "escalate", GREETING: "greeting",
   };
   return map[intent] || "faq";
@@ -354,7 +396,7 @@ serve(async (req) => {
 
     // Step 3: For agents with tools, use tool calling loop then stream final; for others stream directly
     const systemPrompt = AGENT_PROMPTS[agent] || AGENT_PROMPTS.faq;
-    const useTools = ["pricing", "order", "qualifier"].includes(agent);
+    const useTools = ["pricing", "order", "qualifier", "invoice"].includes(agent);
 
     if (useTools) {
       let agentMessages: any[] = [{ role: "system", content: systemPrompt }, ...messages];
