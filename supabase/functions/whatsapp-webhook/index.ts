@@ -786,7 +786,7 @@ serve(async (req) => {
         agent = currentAgent;
       } else {
         // Classify intent for free-text
-        const classification = await classifyIntent(aiHistory.slice(-6), LOVABLE_API_KEY);
+        const classification = await classifyIntent(aiHistory.slice(-12), LOVABLE_API_KEY);
         agent = intentToAgent(classification.intent);
       }
 
