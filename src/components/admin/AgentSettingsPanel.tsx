@@ -24,6 +24,8 @@ interface AgentConfig {
   maxTokens: number;
   agents: { pricing: boolean; faq: boolean; order: boolean; qualifier: boolean };
   leadThresholds: { hot: number; warm: number; cold: number };
+  autoApproveThreshold: number;
+  lowStockThreshold: number;
 }
 
 const DEFAULTS: AgentConfig = {
@@ -32,6 +34,8 @@ const DEFAULTS: AgentConfig = {
   maxTokens: 1000,
   agents: { pricing: true, faq: true, order: true, qualifier: true },
   leadThresholds: { hot: 80, warm: 60, cold: 40 },
+  autoApproveThreshold: 500,
+  lowStockThreshold: 10,
 };
 
 export function AgentSettingsPanel() {
