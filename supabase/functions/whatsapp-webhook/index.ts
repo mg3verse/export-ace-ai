@@ -802,6 +802,7 @@ serve(async (req) => {
           const openingMessages: Record<string, string> = {
             pricing: "You selected *Get a Quote* 💰\n\nWhich product are you interested in? You can share a product name or category.",
             order: "You selected *Place an Order* 📦\n\nLet's get started! Which product(s) would you like to order?",
+            invoice: "You selected *Get Invoice* 🧾\n\nPlease share your order ID (e.g. #e75d2c43) and I'll generate your invoice right away!",
             faq: "You selected *Shipping & Info* ℹ️\n\nWhat would you like to know? I can help with shipping times, licensing, or payment terms.",
             qualifier: "You selected *Become a Buyer* 🤝\n\nGreat! Let me help you get registered. What's your company name?",
           };
