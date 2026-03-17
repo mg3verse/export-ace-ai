@@ -474,11 +474,33 @@ async function sendMainMenu(to: string): Promise<boolean> {
   );
 }
 
+// Send the main menu with 5 clickable options
+async function sendMainMenuV2(to: string): Promise<boolean> {
+  return await sendList(
+    to,
+    "How can I help you today? Select an option below 👇",
+    "View Options",
+    [{
+      title: "Our Services",
+      rows: [
+        { id: "menu_pricing", title: "💰 Get a Quote", description: "Product pricing & bulk discounts" },
+        { id: "menu_order", title: "📦 Place an Order", description: "Start a new purchase order" },
+        { id: "menu_invoice", title: "🧾 Get Invoice", description: "Generate invoice for your order" },
+        { id: "menu_faq", title: "ℹ️ Shipping & Info", description: "Licensing, payment & delivery" },
+        { id: "menu_qualify", title: "🤝 Become a Buyer", description: "Register as a qualified buyer" },
+      ],
+    }],
+    "MedSource International",
+    "Pharmaceutical exports worldwide 🌍"
+  );
+}
+
 // Map menu button IDs to agents
 function getAgentFromMenuId(id: string): string | null {
   const map: Record<string, string> = {
     menu_pricing: "pricing",
     menu_order: "order",
+    menu_invoice: "invoice",
     menu_faq: "faq",
     menu_qualify: "qualifier",
     menu_back: "greeting",
