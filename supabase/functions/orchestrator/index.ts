@@ -242,6 +242,7 @@ INTENTS:
 - PRICING: product prices, quotes, bulk discounts, cost comparisons
 - FAQ: shipping, licensing, regulations, product info, company details
 - ORDER: place, modify, track, or cancel an order
+- INVOICE: invoice, bill, receipt, payment document, generate invoice
 - QUALIFICATION: new buyer, company details, license verification, volume inquiries
 - ESCALATE: complaints, legal issues, returns, anything needing human judgment
 - GREETING: hello, hi, general chat, small talk
