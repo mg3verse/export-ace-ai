@@ -257,7 +257,7 @@ async function classifyIntent(
     headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
     body: JSON.stringify({
       model: "google/gemini-2.5-flash-lite",
-      messages: [{ role: "system", content: CLASSIFIER_PROMPT }, ...messages.slice(-6)],
+      messages: [{ role: "system", content: CLASSIFIER_PROMPT }, ...messages.slice(-12)],
       tools: [{
         type: "function",
         function: {
