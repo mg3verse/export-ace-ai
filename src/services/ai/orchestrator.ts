@@ -18,11 +18,21 @@ export interface ConversationContext {
 }
 
 /** Build a rolling window of the last N messages for context */
-export function buildContextWindow(messages: Message[], maxMessages = 10): { role: 'user' | 'assistant'; content: string }[] {
-  return messages
+export function buildContextWindow(messages: Message[], maxMessages = 20): { role: 'user' | 'assistant'; content: string }[] {
+  const filtered = messages
     .filter((m) => m.role !== 'system')
-    .slice(-maxMessages)
     .map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content }));
+  
+  // If conversation is long, prepend a summary of earlier messages
+  if (filtered.length > maxMessages) {
+    const earlier = filtered.slice(0, filtered.length - maxMessages);
+    const summary = earlier.map(m => `${m.role}: ${m.content.slice(0, 100)}`).join(' | ');
+    return [
+      { role: 'user' as const, content: `[Earlier conversation summary: ${summary}]` },
+      ...filtered.slice(-maxMessages),
+    ];
+  }
+  return filtered;
 }
 
 /** Stream a response from the orchestrator edge function */

@@ -786,7 +786,7 @@ serve(async (req) => {
         agent = currentAgent;
       } else {
         // Classify intent for free-text
-        const classification = await classifyIntent(aiHistory.slice(-6), LOVABLE_API_KEY);
+        const classification = await classifyIntent(aiHistory.slice(-12), LOVABLE_API_KEY);
         agent = intentToAgent(classification.intent);
       }
 
@@ -806,7 +806,7 @@ serve(async (req) => {
           { phone: from, last_message: content.text }
         );
       } else {
-        aiResponse = await getAIResponse(agent, aiHistory.slice(-10), LOVABLE_API_KEY, conversation.id);
+        aiResponse = await getAIResponse(agent, aiHistory.slice(-20), LOVABLE_API_KEY, conversation.id);
         await sendText(from, aiResponse);
 
         // After AI response, show a subtle back-to-menu option
