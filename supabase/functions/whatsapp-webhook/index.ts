@@ -792,7 +792,7 @@ serve(async (req) => {
         const menuAgent = getAgentFromMenuId(content.menuId);
         if (menuAgent === "greeting") {
           // Back to main menu
-          await sendMainMenu(from);
+          await sendMainMenuV2(from);
           await updateConversation(conversation.id, [...existingMessages, { role: "user", content: content.text, timestamp: new Date().toISOString() }], "greeting");
           return new Response(JSON.stringify({ status: "ok" }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
         }
