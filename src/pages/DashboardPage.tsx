@@ -7,6 +7,7 @@ import { LeadQualityChart } from '@/components/dashboard/LeadQualityChart';
 import { OrderStatusChart } from '@/components/dashboard/OrderStatusChart';
 import { LiveFeed } from '@/components/dashboard/LiveFeed';
 import { RevenueChart } from '@/components/dashboard/RevenueChart';
+import { WhatsAppStatusWidget } from '@/components/dashboard/WhatsAppStatusWidget';
 import { useDashboardStore } from '@/stores/dashboardStore';
 import { formatCurrency } from '@/utils/formatters';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -190,12 +191,15 @@ export default function DashboardPage() {
         <OrderStatusChart data={data.ordersByStatus} />
       </div>
 
-      {/* Row 4: Live Feed + Recent Orders */}
-      <div className="grid gap-4 lg:grid-cols-5">
+      {/* Row 4: Live Feed + WhatsApp Status + Recent Orders */}
+      <div className="grid gap-4 lg:grid-cols-6">
         <div className="lg:col-span-2">
           <LiveFeed items={data.liveFeed} />
         </div>
-        <div className="lg:col-span-3">
+        <div className="lg:col-span-2">
+          <WhatsAppStatusWidget />
+        </div>
+        <div className="lg:col-span-2">
           <Card className="glass-card border-border/50">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-semibold">Recent Orders</CardTitle>

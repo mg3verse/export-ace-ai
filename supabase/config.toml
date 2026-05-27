@@ -17,3 +17,6 @@ verify_jwt = false
 
 [functions.check-low-stock]
 verify_jwt = false
+
+[functions.whatsapp-status]
+verify_jwt = false
